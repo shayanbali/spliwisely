@@ -16,6 +16,7 @@ export default function EditExpenseScreen({ route, navigation }: any) {
   const { user } = useAuth();
 
   const [description, setDescription] = useState(expense.description);
+  const [notes, setNotes] = useState(expense.notes ?? '');
   const [amount, setAmount] = useState(parseFloat(expense.amount).toString());
   const [currency, setCurrency] = useState(expense.currency ?? group.currency ?? 'USD');
   const [splitType, setSplitType] = useState<'equal' | 'exact' | 'percentage'>(expense.split_type);
@@ -90,6 +91,7 @@ export default function EditExpenseScreen({ route, navigation }: any) {
     try {
       await updateExpense(expense.id, {
         description: description.trim(),
+        notes: notes.trim() || undefined,
         amount: total,
         currency,
         paid_by_id: paidById,
@@ -212,6 +214,18 @@ export default function EditExpenseScreen({ route, navigation }: any) {
             value={description}
             onChangeText={setDescription}
           />
+
+          <Text style={styles.label}>Notes</Text>
+          <TextInput
+            style={[styles.input, styles.notesInput]}
+            placeholder="Optional note or memo"
+            placeholderTextColor={C.placeholder}
+            value={notes}
+            onChangeText={setNotes}
+            multiline
+            numberOfLines={3}
+          />
+
           <Text style={styles.label}>Amount</Text>
           <View style={styles.amountRow}>
             <TouchableOpacity
@@ -398,6 +412,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginBottom: 14,
     color: C.text,
+  },
+  notesInput: {
+    minHeight: 80,
+    textAlignVertical: 'top',
   },
 
   amountRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },

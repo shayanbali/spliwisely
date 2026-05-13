@@ -10,6 +10,7 @@ export interface Group {
   id: number;
   name: string;
   currency: string;
+  image?: string | null;
   members: GroupMember[];
   member_count: number;
   created_at: string;
@@ -26,6 +27,7 @@ export interface Expense {
   id: number;
   group: number;
   description: string;
+  notes?: string;
   amount: string;
   currency: string;
   paid_by: User;

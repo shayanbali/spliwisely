@@ -6,6 +6,7 @@ export const getExpenses = (groupId?: number) =>
 
 export const createExpense = (data: {
   description: string;
+  notes?: string;
   amount: number;
   currency: string;
   paid_by_id: number;
@@ -20,6 +21,7 @@ export const deleteExpense = (id: number) => api.delete(`/expenses/${id}/`);
 
 export const updateExpense = (id: number, data: {
   description?: string;
+  notes?: string;
   amount?: number;
   currency?: string;
   paid_by_id?: number;

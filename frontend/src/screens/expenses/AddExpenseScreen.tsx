@@ -16,6 +16,7 @@ export default function AddExpenseScreen({ route, navigation }: any) {
   const { user } = useAuth();
 
   const [description, setDescription] = useState('');
+  const [notes, setNotes] = useState('');
   const [amount, setAmount] = useState('');
   const [currency, setCurrency] = useState(group.currency ?? 'USD');
   const [splitType, setSplitType] = useState<'equal' | 'exact' | 'percentage'>('equal');
@@ -74,6 +75,7 @@ export default function AddExpenseScreen({ route, navigation }: any) {
     try {
       await createExpense({
         description: description.trim(),
+        notes: notes.trim() || undefined,
         amount: total,
         currency,
         paid_by_id: paidById,
@@ -201,6 +203,17 @@ export default function AddExpenseScreen({ route, navigation }: any) {
             placeholderTextColor={C.placeholder}
             value={description}
             onChangeText={setDescription}
+          />
+
+          <Text style={styles.label}>Notes</Text>
+          <TextInput
+            style={[styles.input, styles.notesInput]}
+            placeholder="Optional note or memo"
+            placeholderTextColor={C.placeholder}
+            value={notes}
+            onChangeText={setNotes}
+            multiline
+            numberOfLines={3}
           />
 
           <Text style={styles.label}>Amount</Text>
@@ -429,6 +442,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginBottom: 14,
     color: C.text,
+  },
+  notesInput: {
+    minHeight: 80,
+    textAlignVertical: 'top',
   },
 
   amountRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },

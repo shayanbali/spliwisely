@@ -26,6 +26,7 @@ class Expense(models.Model):
     )
     split_type = models.CharField(max_length=10, choices=SPLIT_CHOICES, default='equal')
     currency = models.CharField(max_length=3, choices=CURRENCY_CHOICES, default='USD')
+    notes = models.TextField(blank=True)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
         null=True, related_name='created_expenses'

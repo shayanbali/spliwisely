@@ -12,6 +12,7 @@ class Group(models.Model):
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     currency = models.CharField(max_length=3, choices=CURRENCY_CHOICES, default='USD')
+    image = models.ImageField(upload_to='group_images/', null=True, blank=True)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
         null=True, related_name='created_groups'

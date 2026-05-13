@@ -1,11 +1,13 @@
 import React, { useCallback, useState } from 'react';
 import {
-  View, Text, FlatList, StyleSheet, TouchableOpacity,
+  View, Text, Image, FlatList, StyleSheet, TouchableOpacity,
   ActivityIndicator, Alert, TextInput, RefreshControl,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect } from '@react-navigation/native';
-import { getGroup, addMember } from '../../services/groups';
+import { getGroup, addMember, updateGroupImage } from '../../services/groups';
 import { useAuth } from '../../context/AuthContext';
 import { getExpenses, getSimplifiedBalances, deleteExpense } from '../../services/expenses';
 import { Group, Expense } from '../../types';
@@ -13,6 +15,7 @@ import BottomModal from '../../components/common/BottomModal';
 import Avatar from '../../components/common/Avatar';
 import { useCurrency } from '../../context/CurrencyContext';
 import { fmt } from '../../utils/currency';
+import { getExpenseCategory } from '../../utils/expenseCategory';
 import { C, S, TAB_PAD } from '../../theme';
 
 export default function GroupDetailScreen({ route, navigation }: any) {
@@ -27,6 +30,7 @@ export default function GroupDetailScreen({ route, navigation }: any) {
   const [addModal, setAddModal] = useState(false);
   const [email, setEmail] = useState('');
   const [adding, setAdding] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   const { converted } = useCurrency();
 
@@ -63,6 +67,31 @@ export default function GroupDetailScreen({ route, navigation }: any) {
       Alert.alert('Error', e.response?.data?.email?.[0] || 'Could not add member.');
     } finally {
       setAdding(false);
+    }
+  }
+
+  async function handlePickGroupImage() {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission needed', 'Allow photo access to set a group picture.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+    if (result.canceled) return;
+    const uri = result.assets[0].uri;
+    setUploadingImage(true);
+    try {
+      const updated = await updateGroupImage(group.id, uri);
+      setGroup(updated);
+    } catch {
+      Alert.alert('Error', 'Could not update group picture.');
+    } finally {
+      setUploadingImage(false);
     }
   }
 
@@ -168,6 +197,29 @@ export default function GroupDetailScreen({ route, navigation }: any) {
         }
         ListHeaderComponent={() => (
           <>
+            <View style={styles.groupAvatarSection}>
+              <TouchableOpacity onPress={handlePickGroupImage} activeOpacity={0.85}>
+                {group.image ? (
+                  <Image source={{ uri: group.image }} style={styles.groupAvatar} />
+                ) : (
+                  <LinearGradient
+                    colors={[C.accent, C.accentDark]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.groupAvatar}
+                  >
+                    <Text style={styles.groupAvatarLetter}>{group.name[0].toUpperCase()}</Text>
+                  </LinearGradient>
+                )}
+                <View style={styles.cameraOverlay}>
+                  {uploadingImage
+                    ? <ActivityIndicator size="small" color="#fff" />
+                    : <Ionicons name="camera" size={13} color="#fff" />
+                  }
+                </View>
+              </TouchableOpacity>
+            </View>
+
             {simplified.length > 0 && (
               <View style={styles.section}>
                 <Text style={styles.sectionLabel}>Suggested Settlements</Text>
@@ -288,11 +340,12 @@ export default function GroupDetailScreen({ route, navigation }: any) {
           }
 
           const convStr = converted(total, expCurrency);
+          const cat = getExpenseCategory(item.description);
 
           return (
             <View style={[styles.expenseRow, S.shadowSm]}>
-              <View style={styles.expenseIcon}>
-                <Text style={styles.expenseIconText}>{expCurrency[0]}</Text>
+              <View style={[styles.expenseIcon, { backgroundColor: cat.bg }]}>
+                <Ionicons name={cat.icon as any} size={20} color={cat.color} />
               </View>
               <View style={styles.expenseInfo}>
                 <Text style={styles.expenseDesc}>{item.description}</Text>
@@ -301,6 +354,9 @@ export default function GroupDetailScreen({ route, navigation }: any) {
                 </Text>
                 {shareLabel ? (
                   <Text style={[styles.expenseShare, { color: shareColor }]}>{shareLabel}</Text>
+                ) : null}
+                {item.notes ? (
+                  <Text style={styles.expenseNotes} numberOfLines={2}>{item.notes}</Text>
                 ) : null}
               </View>
               <TouchableOpacity
@@ -463,12 +519,10 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: 'rgba(255,159,10,0.15)',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
   },
-  expenseIconText: { fontSize: 16, fontWeight: '800', color: '#FF9F0A' },
   expenseInfo: { flex: 1 },
   menuBtn: {
     paddingLeft: 8,
@@ -478,6 +532,7 @@ const styles = StyleSheet.create({
   expenseDesc: { fontSize: 15, fontWeight: '700', color: C.text },
   expenseSub: { fontSize: 12, color: C.textSecondary, marginTop: 2 },
   expenseShare: { fontSize: 12, fontWeight: '700', marginTop: 3 },
+  expenseNotes: { fontSize: 12, color: C.textMuted, marginTop: 3, fontStyle: 'italic' },
   emptyBox: { alignItems: 'center', paddingVertical: 40, paddingHorizontal: 24 },
   emptyIconCircle: {
     width: 64,
@@ -490,6 +545,21 @@ const styles = StyleSheet.create({
   },
   emptyTitle: { fontSize: 18, fontWeight: '700', color: C.text, marginBottom: 6 },
   emptySub: { fontSize: 13, color: C.textSecondary, textAlign: 'center', lineHeight: 18 },
+
+  groupAvatarSection: { alignItems: 'center', paddingTop: 8, paddingBottom: 4 },
+  groupAvatar: {
+    width: 80, height: 80, borderRadius: 24,
+    justifyContent: 'center', alignItems: 'center',
+    overflow: 'hidden',
+  },
+  groupAvatarLetter: { fontSize: 32, fontWeight: '800', color: '#fff' },
+  cameraOverlay: {
+    position: 'absolute', bottom: 0, right: 0,
+    width: 26, height: 26, borderRadius: 13,
+    backgroundColor: C.accent,
+    justifyContent: 'center', alignItems: 'center',
+    borderWidth: 2, borderColor: C.bg,
+  },
 
   errorText: { fontSize: 17, fontWeight: '600', color: C.text, marginBottom: 20 },
   retryBtn: { backgroundColor: C.accent, borderRadius: 16, paddingHorizontal: 28, paddingVertical: 14 },

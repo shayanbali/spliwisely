@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import {
-  View, Text, FlatList, StyleSheet, TouchableOpacity,
+  View, Text, Image, FlatList, StyleSheet, TouchableOpacity,
   ActivityIndicator, Alert, TextInput, RefreshControl,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -138,16 +138,20 @@ export default function GroupsScreen({ navigation }: any) {
               onPress={() => navigation.navigate('GroupDetail', { group: item })}
               activeOpacity={0.8}
             >
-              <LinearGradient
-                colors={[C.accent, C.accentDark]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.cardIcon}
-              >
-                <Text style={styles.cardIconText}>
-                  {item.name[0].toUpperCase()}
-                </Text>
-              </LinearGradient>
+              {item.image ? (
+                <Image source={{ uri: item.image }} style={styles.cardIcon} />
+              ) : (
+                <LinearGradient
+                  colors={[C.accent, C.accentDark]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.cardIcon}
+                >
+                  <Text style={styles.cardIconText}>
+                    {item.name[0].toUpperCase()}
+                  </Text>
+                </LinearGradient>
+              )}
 
               <View style={styles.cardInfo}>
                 <Text style={styles.cardName}>{item.name}</Text>
@@ -287,6 +291,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 14,
+    overflow: 'hidden',
   },
   cardIconText: { fontSize: 20, fontWeight: '800', color: '#fff' },
   cardInfo: { flex: 1 },

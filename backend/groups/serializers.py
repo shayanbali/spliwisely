@@ -35,10 +35,17 @@ class GroupSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Group
-        fields = ('id', 'name', 'description', 'currency', 'created_by', 'members', 'member_count', 'created_at')
+        fields = ('id', 'name', 'description', 'currency', 'image', 'created_by', 'members', 'member_count', 'created_at')
 
     def get_member_count(self, obj):
         return obj.members.count()
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        request = self.context.get('request')
+        if data.get('image'):
+            data['image'] = request.build_absolute_uri(instance.image.url) if request else instance.image.url
+        return data
 
     def create(self, validated_data):
         user = self.context['request'].user
