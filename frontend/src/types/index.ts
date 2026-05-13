@@ -8,8 +8,17 @@ export interface User {
 export interface Group {
   id: number;
   name: string;
-  members: User[];
+  currency: string;
+  members: GroupMember[];
+  member_count: number;
   created_at: string;
+}
+
+export interface GroupMember {
+  id: number;
+  user: User;
+  role: string;
+  joined_at: string;
 }
 
 export interface Expense {

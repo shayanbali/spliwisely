@@ -12,6 +12,7 @@ import GroupsScreen from '../screens/groups/GroupsScreen';
 import GroupDetailScreen from '../screens/groups/GroupDetailScreen';
 import FriendsScreen from '../screens/friends/FriendsScreen';
 import ActivityScreen from '../screens/ActivityScreen';
+import ProfileScreen from '../screens/ProfileScreen';
 import AddExpenseScreen from '../screens/expenses/AddExpenseScreen';
 import SettleUpScreen from '../screens/expenses/SettleUpScreen';
 
@@ -19,7 +20,9 @@ const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
 function TabIcon({ label, focused }: { label: string; focused: boolean }) {
-  const icons: Record<string, string> = { Dashboard: '⚖️', Groups: '👥', Activity: '🕐', Friends: '🤝' };
+  const icons: Record<string, string> = {
+    Dashboard: '⚖️', Groups: '👥', Activity: '🕐', Friends: '🤝', Profile: '👤',
+  };
   return <Text style={{ fontSize: 20, opacity: focused ? 1 : 0.4 }}>{icons[label]}</Text>;
 }
 
@@ -35,6 +38,7 @@ function MainTabs() {
       <Tab.Screen name="Groups" component={GroupsScreen} />
       <Tab.Screen name="Activity" component={ActivityScreen} />
       <Tab.Screen name="Friends" component={FriendsScreen} />
+      <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
   );
 }

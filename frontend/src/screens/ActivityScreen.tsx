@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { View, Text, FlatList, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, FlatList, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { getActivityFeed } from '../services/expenses';
 import { useAuth } from '../context/AuthContext';
@@ -20,11 +20,15 @@ export default function ActivityScreen() {
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(false);
 
   async function load() {
+    setError(false);
     try {
       const data = await getActivityFeed();
       setItems(data);
+    } catch {
+      setError(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -34,6 +38,21 @@ export default function ActivityScreen() {
   useFocusEffect(useCallback(() => { load(); }, []));
 
   if (loading) return <ActivityIndicator style={{ flex: 1 }} size="large" color="#1aa672" />;
+
+  if (error) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 }}>
+        <Text style={{ fontSize: 48, marginBottom: 12 }}>⚠️</Text>
+        <Text style={{ fontSize: 17, fontWeight: '600', color: '#333', marginBottom: 20 }}>Could not load activity</Text>
+        <TouchableOpacity
+          style={{ backgroundColor: '#1aa672', borderRadius: 10, paddingHorizontal: 28, paddingVertical: 12 }}
+          onPress={() => { setLoading(true); load(); }}
+        >
+          <Text style={{ color: '#fff', fontWeight: '600', fontSize: 15 }}>Try Again</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   function renderExpense(item: any) {
     const myShare = item.my_share ? parseFloat(item.my_share) : 0;
@@ -111,7 +130,15 @@ export default function ActivityScreen() {
         keyExtractor={(item, i) => `${item.type}-${item.id}-${i}`}
         contentContainerStyle={{ padding: 16 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
-        ListEmptyComponent={<Text style={styles.empty}>No activity yet. Add an expense to get started!</Text>}
+        ListEmptyComponent={
+          <View style={{ alignItems: 'center', marginTop: 60, padding: 24 }}>
+            <Text style={{ fontSize: 52, marginBottom: 12 }}>🕐</Text>
+            <Text style={{ fontSize: 20, fontWeight: '700', marginBottom: 6 }}>No activity yet</Text>
+            <Text style={{ fontSize: 14, color: '#999', textAlign: 'center', lineHeight: 20 }}>
+              Add an expense in a group to see your activity here.
+            </Text>
+          </View>
+        }
         renderItem={({ item }) => item.type === 'expense' ? renderExpense(item) : renderSettlement(item)}
       />
     </View>

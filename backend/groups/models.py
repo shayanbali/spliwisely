@@ -3,8 +3,14 @@ from django.conf import settings
 
 
 class Group(models.Model):
+    CURRENCY_CHOICES = [
+        ('USD', 'USD'), ('EUR', 'EUR'), ('GBP', 'GBP'),
+        ('CAD', 'CAD'), ('AUD', 'AUD'), ('IRR', 'IRR'),
+    ]
+
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True)
+    currency = models.CharField(max_length=3, choices=CURRENCY_CHOICES, default='USD')
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
         null=True, related_name='created_groups'

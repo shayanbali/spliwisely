@@ -5,8 +5,8 @@ export const getGroups = () => api.get<Group[]>('/groups/').then(r => r.data);
 
 export const getGroup = (id: number) => api.get<Group>(`/groups/${id}/`).then(r => r.data);
 
-export const createGroup = (name: string, description?: string) =>
-  api.post<Group>('/groups/', { name, description }).then(r => r.data);
+export const createGroup = (name: string, currency = 'USD', description?: string) =>
+  api.post<Group>('/groups/', { name, currency, description }).then(r => r.data);
 
 export const addMember = (groupId: number, email: string) =>
   api.post(`/groups/${groupId}/members/`, { email });

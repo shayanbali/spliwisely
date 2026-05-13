@@ -1,21 +1,25 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import { View, Text, FlatList, StyleSheet, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { getBalances } from '../services/expenses';
 
 export default function DashboardScreen({ navigation }: any) {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const [balances, setBalances] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(false);
 
   const totalBalance = balances.reduce((sum, b) => sum + parseFloat(b.amount), 0);
 
   async function load() {
+    setError(false);
     try {
       const data = await getBalances();
       setBalances(data);
+    } catch {
+      setError(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -26,13 +30,22 @@ export default function DashboardScreen({ navigation }: any) {
 
   if (loading) return <ActivityIndicator style={styles.loader} size="large" color="#1aa672" />;
 
+  if (error) {
+    return (
+      <View style={[styles.container, styles.centerBox]}>
+        <Text style={styles.errorIcon}>⚠️</Text>
+        <Text style={styles.errorText}>Could not load balances</Text>
+        <TouchableOpacity style={styles.retryBtn} onPress={() => { setLoading(true); load(); }}>
+          <Text style={styles.retryBtnText}>Try Again</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.greeting}>Hi, {user?.name || user?.email} 👋</Text>
-        <TouchableOpacity onPress={logout}>
-          <Text style={styles.logout}>Log out</Text>
-        </TouchableOpacity>
       </View>
 
       <View style={[styles.totalCard, { backgroundColor: totalBalance >= 0 ? '#1aa672' : '#e53935' }]}>
@@ -48,7 +61,11 @@ export default function DashboardScreen({ navigation }: any) {
       <Text style={styles.sectionTitle}>Balances</Text>
 
       {balances.length === 0 ? (
-        <Text style={styles.empty}>No balances yet. Add an expense!</Text>
+        <View style={styles.emptyBox}>
+          <Text style={styles.emptyIcon}>⚖️</Text>
+          <Text style={styles.emptyTitle}>All settled up!</Text>
+          <Text style={styles.emptySub}>Add expenses in a group to see who owes what.</Text>
+        </View>
       ) : (
         <FlatList
           data={balances}
@@ -83,13 +100,20 @@ const styles = StyleSheet.create({
   loader: { flex: 1 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 60, backgroundColor: '#fff' },
   greeting: { fontSize: 18, fontWeight: '700' },
-  logout: { color: '#e53935', fontSize: 14 },
   totalCard: { margin: 16, borderRadius: 16, padding: 24, alignItems: 'center' },
   totalLabel: { color: 'rgba(255,255,255,0.8)', fontSize: 14 },
   totalAmount: { color: '#fff', fontSize: 40, fontWeight: '800', marginVertical: 4 },
   totalSub: { color: 'rgba(255,255,255,0.9)', fontSize: 14 },
   sectionTitle: { fontSize: 16, fontWeight: '700', marginHorizontal: 16, marginBottom: 8 },
-  empty: { textAlign: 'center', color: '#999', marginTop: 40 },
+  emptyBox: { alignItems: 'center', marginTop: 48, padding: 24 },
+  emptyIcon: { fontSize: 52, marginBottom: 12 },
+  emptyTitle: { fontSize: 20, fontWeight: '700', marginBottom: 6 },
+  emptySub: { fontSize: 14, color: '#999', textAlign: 'center', lineHeight: 20 },
+  centerBox: { justifyContent: 'center', alignItems: 'center', padding: 32 },
+  errorIcon: { fontSize: 48, marginBottom: 12 },
+  errorText: { fontSize: 17, fontWeight: '600', color: '#333', marginBottom: 20 },
+  retryBtn: { backgroundColor: '#1aa672', borderRadius: 10, paddingHorizontal: 28, paddingVertical: 12 },
+  retryBtnText: { color: '#fff', fontWeight: '600', fontSize: 15 },
   balanceRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', marginHorizontal: 16, marginBottom: 8, padding: 14, borderRadius: 12 },
   avatar: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#e8f5e9', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
   avatarText: { fontSize: 18, fontWeight: '700', color: '#1aa672' },

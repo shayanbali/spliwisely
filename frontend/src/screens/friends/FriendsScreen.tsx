@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { View, Text, FlatList, StyleSheet, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, FlatList, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { getFriends } from '../../services/groups';
 import { getBalances } from '../../services/expenses';
@@ -9,14 +9,18 @@ export default function FriendsScreen() {
   const [balances, setBalances] = useState<Record<number, number>>({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(false);
 
   async function load() {
+    setError(false);
     try {
       const [f, b] = await Promise.all([getFriends(), getBalances()]);
       setFriends(f);
       const balanceMap: Record<number, number> = {};
       b.forEach((bal: any) => { balanceMap[bal.user.id] = parseFloat(bal.amount); });
       setBalances(balanceMap);
+    } catch {
+      setError(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -26,6 +30,18 @@ export default function FriendsScreen() {
   useFocusEffect(useCallback(() => { load(); }, []));
 
   if (loading) return <ActivityIndicator style={{ flex: 1 }} size="large" color="#1aa672" />;
+
+  if (error) {
+    return (
+      <View style={styles.centerBox}>
+        <Text style={styles.errorIcon}>⚠️</Text>
+        <Text style={styles.errorText}>Could not load friends</Text>
+        <TouchableOpacity style={styles.retryBtn} onPress={() => { setLoading(true); load(); }}>
+          <Text style={styles.retryBtnText}>Try Again</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -37,7 +53,13 @@ export default function FriendsScreen() {
         keyExtractor={f => f.id.toString()}
         contentContainerStyle={{ padding: 16 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
-        ListEmptyComponent={<Text style={styles.empty}>No friends yet. Add members to a group to connect!</Text>}
+        ListEmptyComponent={
+          <View style={styles.emptyBox}>
+            <Text style={styles.emptyIcon}>🤝</Text>
+            <Text style={styles.emptyTitle}>No friends yet</Text>
+            <Text style={styles.emptySub}>Add members to a group to connect with friends.</Text>
+          </View>
+        }
         renderItem={({ item }) => {
           const balance = balances[item.to_user.id] ?? 0;
           return (
@@ -70,7 +92,15 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f5f5f5' },
   header: { padding: 20, paddingTop: 60, backgroundColor: '#fff' },
   title: { fontSize: 24, fontWeight: '800' },
-  empty: { textAlign: 'center', color: '#999', marginTop: 40, lineHeight: 22 },
+  centerBox: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
+  errorIcon: { fontSize: 48, marginBottom: 12 },
+  errorText: { fontSize: 17, fontWeight: '600', color: '#333', marginBottom: 20 },
+  retryBtn: { backgroundColor: '#1aa672', borderRadius: 10, paddingHorizontal: 28, paddingVertical: 12 },
+  retryBtnText: { color: '#fff', fontWeight: '600', fontSize: 15 },
+  emptyBox: { alignItems: 'center', marginTop: 60, padding: 24 },
+  emptyIcon: { fontSize: 52, marginBottom: 12 },
+  emptyTitle: { fontSize: 20, fontWeight: '700', marginBottom: 6 },
+  emptySub: { fontSize: 14, color: '#999', textAlign: 'center', lineHeight: 20 },
   card: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 12, padding: 14, marginBottom: 10 },
   avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#e8f5e9', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
   avatarText: { fontSize: 20, fontWeight: '700', color: '#1aa672' },

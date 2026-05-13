@@ -26,7 +26,7 @@ class GroupSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Group
-        fields = ('id', 'name', 'description', 'created_by', 'members', 'member_count', 'created_at')
+        fields = ('id', 'name', 'description', 'currency', 'created_by', 'members', 'member_count', 'created_at')
 
     def get_member_count(self, obj):
         return obj.members.count()

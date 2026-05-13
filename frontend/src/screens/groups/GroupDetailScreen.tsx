@@ -3,9 +3,13 @@ import { View, Text, FlatList, StyleSheet, TouchableOpacity, ActivityIndicator, 
 import { useFocusEffect } from '@react-navigation/native';
 import { getGroup, addMember } from '../../services/groups';
 import { useAuth } from '../../context/AuthContext';
-import { getExpenses, getSimplifiedBalances } from '../../services/expenses';
+import { getExpenses, getSimplifiedBalances, deleteExpense } from '../../services/expenses';
 import { Group, Expense } from '../../types';
 import BottomModal from '../../components/common/BottomModal';
+
+const CURRENCY_SYMBOLS: Record<string, string> = {
+  USD: '$', EUR: '€', GBP: '£', CAD: 'CA$', AUD: 'A$', IRR: '﷼',
+};
 
 export default function GroupDetailScreen({ route, navigation }: any) {
   const { user } = useAuth();
@@ -15,11 +19,15 @@ export default function GroupDetailScreen({ route, navigation }: any) {
   const [simplified, setSimplified] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(false);
   const [addModal, setAddModal] = useState(false);
   const [email, setEmail] = useState('');
   const [adding, setAdding] = useState(false);
 
+  const symbol = CURRENCY_SYMBOLS[group.currency] ?? group.currency;
+
   async function load() {
+    setError(false);
     try {
       const [g, e, s] = await Promise.all([
         getGroup(initialGroup.id),
@@ -29,6 +37,8 @@ export default function GroupDetailScreen({ route, navigation }: any) {
       setGroup(g);
       setExpenses(e);
       setSimplified(s);
+    } catch {
+      setError(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -52,7 +62,50 @@ export default function GroupDetailScreen({ route, navigation }: any) {
     }
   }
 
+  function handleDeleteExpense(id: number, description: string) {
+    Alert.alert(
+      'Delete Expense',
+      `Delete "${description}"?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteExpense(id);
+              load();
+            } catch {
+              Alert.alert('Error', 'Could not delete expense.');
+            }
+          },
+        },
+      ]
+    );
+  }
+
   if (loading) return <ActivityIndicator style={{ flex: 1 }} size="large" color="#1aa672" />;
+
+  if (error) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <Text style={styles.back}>‹ Back</Text>
+          </TouchableOpacity>
+          <Text style={styles.title}>{initialGroup.name}</Text>
+          <View style={{ width: 60 }} />
+        </View>
+        <View style={styles.centerBox}>
+          <Text style={styles.errorIcon}>⚠️</Text>
+          <Text style={styles.errorText}>Could not load group</Text>
+          <TouchableOpacity style={styles.retryBtn} onPress={() => { setLoading(true); load(); }}>
+            <Text style={styles.retryBtnText}>Try Again</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -60,7 +113,10 @@ export default function GroupDetailScreen({ route, navigation }: any) {
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Text style={styles.back}>‹ Back</Text>
         </TouchableOpacity>
-        <Text style={styles.title}>{group.name}</Text>
+        <View style={styles.headerCenter}>
+          <Text style={styles.title}>{group.name}</Text>
+          <Text style={styles.headerSub}>{group.currency}</Text>
+        </View>
         <TouchableOpacity onPress={() => setAddModal(true)}>
           <Text style={styles.addBtn}>+ Member</Text>
         </TouchableOpacity>
@@ -81,7 +137,7 @@ export default function GroupDetailScreen({ route, navigation }: any) {
                       {' → '}
                       <Text style={{ fontWeight: '700' }}>{t.to.name || t.to.email}</Text>
                     </Text>
-                    <Text style={styles.settlementAmount}>${parseFloat(t.amount).toFixed(2)}</Text>
+                    <Text style={styles.settlementAmount}>{symbol}{parseFloat(t.amount).toFixed(2)}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -114,7 +170,13 @@ export default function GroupDetailScreen({ route, navigation }: any) {
         data={expenses}
         keyExtractor={e => e.id.toString()}
         contentContainerStyle={{ paddingBottom: 40 }}
-        ListEmptyComponent={<Text style={styles.empty}>No expenses yet.</Text>}
+        ListEmptyComponent={
+          <View style={styles.emptyBox}>
+            <Text style={styles.emptyIcon}>💸</Text>
+            <Text style={styles.emptyTitle}>No expenses yet</Text>
+            <Text style={styles.emptySub}>Tap "+ Add" to record your first expense.</Text>
+          </View>
+        }
         renderItem={({ item }) => {
           const myId = user?.id;
           const mySplit = item.splits?.find((s: any) => s.user.id === myId);
@@ -125,33 +187,37 @@ export default function GroupDetailScreen({ route, navigation }: any) {
           let shareLabel = '';
           let shareColor = '#999';
           if (iPaid && myShare > 0) {
-            // I paid the whole bill — I lent the rest
             const lent = parseFloat(item.amount) - myShare;
-            shareLabel = lent > 0 ? `you lent $${lent.toFixed(2)}` : 'you paid in full';
+            shareLabel = lent > 0 ? `you lent ${symbol}${lent.toFixed(2)}` : 'you paid in full';
             shareColor = '#1aa672';
           } else if (iPaid) {
             shareLabel = 'you paid in full';
             shareColor = '#1aa672';
           } else if (myShare > 0) {
-            shareLabel = `you owe $${myShare.toFixed(2)}`;
+            shareLabel = `you owe ${symbol}${myShare.toFixed(2)}`;
             shareColor = '#e53935';
           }
 
           return (
-            <View style={styles.expenseRow}>
+            <TouchableOpacity
+              style={styles.expenseRow}
+              onLongPress={() => handleDeleteExpense(item.id, item.description)}
+              delayLongPress={400}
+            >
               <View style={styles.expenseIcon}>
-                <Text style={styles.expenseIconText}>$</Text>
+                <Text style={styles.expenseIconText}>{symbol}</Text>
               </View>
               <View style={styles.expenseInfo}>
                 <Text style={styles.expenseDesc}>{item.description}</Text>
                 <Text style={styles.expenseSub}>
-                  Paid by {paidByName} · total ${parseFloat(item.amount).toFixed(2)}
+                  Paid by {paidByName} · total {symbol}{parseFloat(item.amount).toFixed(2)}
                 </Text>
                 {shareLabel ? (
                   <Text style={[styles.expenseShare, { color: shareColor }]}>{shareLabel}</Text>
                 ) : null}
               </View>
-            </View>
+              <Text style={styles.deleteHint}>⋮</Text>
+            </TouchableOpacity>
           );
         }}
       />
@@ -174,7 +240,9 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f5f5f5' },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, paddingTop: 60, backgroundColor: '#fff' },
   back: { fontSize: 17, color: '#1aa672' },
+  headerCenter: { alignItems: 'center' },
   title: { fontSize: 18, fontWeight: '700' },
+  headerSub: { fontSize: 12, color: '#999', marginTop: 2 },
   addBtn: { fontSize: 14, color: '#1aa672', fontWeight: '600' },
   section: { backgroundColor: '#fff', marginTop: 12, padding: 16 },
   sectionTitle: { fontSize: 15, fontWeight: '700', marginBottom: 10 },
@@ -189,14 +257,23 @@ const styles = StyleSheet.create({
   expenseHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   addExpenseBtn: { backgroundColor: '#1aa672', borderRadius: 16, paddingHorizontal: 14, paddingVertical: 6 },
   addExpenseBtnText: { color: '#fff', fontWeight: '600', fontSize: 13 },
-  empty: { textAlign: 'center', color: '#999', paddingVertical: 20 },
+  centerBox: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
+  errorIcon: { fontSize: 48, marginBottom: 12 },
+  errorText: { fontSize: 17, fontWeight: '600', color: '#333', marginBottom: 20 },
+  retryBtn: { backgroundColor: '#1aa672', borderRadius: 10, paddingHorizontal: 28, paddingVertical: 12 },
+  retryBtnText: { color: '#fff', fontWeight: '600', fontSize: 15 },
+  emptyBox: { alignItems: 'center', paddingVertical: 32 },
+  emptyIcon: { fontSize: 40, marginBottom: 8 },
+  emptyTitle: { fontSize: 17, fontWeight: '600', marginBottom: 4 },
+  emptySub: { fontSize: 13, color: '#999', textAlign: 'center' },
   expenseRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f5f5f5' },
   expenseIcon: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#fff9e6', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
-  expenseIconText: { fontSize: 18, fontWeight: '700', color: '#f5a623' },
+  expenseIconText: { fontSize: 15, fontWeight: '700', color: '#f5a623' },
   expenseInfo: { flex: 1 },
   expenseDesc: { fontSize: 15, fontWeight: '600' },
   expenseSub: { fontSize: 12, color: '#999', marginTop: 2 },
   expenseShare: { fontSize: 12, fontWeight: '700', marginTop: 3 },
+  deleteHint: { fontSize: 20, color: '#ccc', paddingLeft: 8 },
   modalTitle: { fontSize: 20, fontWeight: '700', marginBottom: 16 },
   input: { borderWidth: 1, borderColor: '#ddd', borderRadius: 10, padding: 14, fontSize: 16, marginBottom: 14 },
   modalBtn: { backgroundColor: '#1aa672', borderRadius: 10, padding: 16, alignItems: 'center', marginBottom: 10 },
