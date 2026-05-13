@@ -1,6 +1,8 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import * as SecureStore from 'expo-secure-store';
+import * as Notifications from 'expo-notifications';
 import api from '../services/api';
+import { registerPushToken, unregisterPushToken } from '../services/notifications';
 
 interface User {
   id: number;
@@ -20,9 +22,27 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const notificationListener = useRef<any>();
+  const responseListener = useRef<any>();
 
   useEffect(() => {
     loadUser();
+
+    // Listen for notifications received while app is open
+    notificationListener.current = Notifications.addNotificationReceivedListener(() => {});
+
+    // Handle notification tap
+    responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
+      const data = response.notification.request.content.data as any;
+      if (data?.type === 'expense' && data?.group_id) {
+        // Navigate to the group — handled in navigation layer
+      }
+    });
+
+    return () => {
+      notificationListener.current?.remove();
+      responseListener.current?.remove();
+    };
   }, []);
 
   async function loadUser() {
@@ -31,6 +51,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (token) {
         const { data } = await api.get('/auth/me/');
         setUser(data);
+        registerPushToken().catch(() => {});
       }
     } catch {
       await SecureStore.deleteItemAsync('access_token');
@@ -46,9 +67,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await SecureStore.setItemAsync('refresh_token', data.refresh);
     const me = await api.get('/auth/me/');
     setUser(me.data);
+    registerPushToken().catch(() => {});
   }
 
   async function logout() {
+    await unregisterPushToken().catch(() => {});
     await SecureStore.deleteItemAsync('access_token');
     await SecureStore.deleteItemAsync('refresh_token');
     setUser(null);

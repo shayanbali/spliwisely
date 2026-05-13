@@ -1,5 +1,8 @@
-from rest_framework import generics, permissions
+from rest_framework import generics, permissions, status
+from rest_framework.views import APIView
+from rest_framework.response import Response
 from django.contrib.auth import get_user_model
+from .models import PushToken
 from .serializers import RegisterSerializer, UserSerializer
 
 User = get_user_model()
@@ -17,3 +20,19 @@ class MeView(generics.RetrieveUpdateAPIView):
 
     def get_object(self):
         return self.request.user
+
+
+class RegisterPushTokenView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        token = request.data.get('token', '').strip()
+        if not token:
+            return Response({'detail': 'Token required.'}, status=status.HTTP_400_BAD_REQUEST)
+        PushToken.objects.get_or_create(user=request.user, token=token)
+        return Response({'detail': 'Token registered.'})
+
+    def delete(self, request):
+        token = request.data.get('token', '').strip()
+        PushToken.objects.filter(user=request.user, token=token).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
