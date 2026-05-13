@@ -93,7 +93,7 @@ class BalancesView(APIView):
                 continue
             other_user = User.objects.get(id=user_id)
             result.append({
-                'user': UserBriefSerializer(other_user).data,
+                'user': UserBriefSerializer(other_user, context={'request': request}).data,
                 'amount': str(amount),
             })
 
@@ -125,8 +125,8 @@ class SimplifiedBalancesView(APIView):
             debtor = User.objects.get(id=debtor_id)
             creditor = User.objects.get(id=creditor_id)
             result.append({
-                'from': UserBriefSerializer(debtor).data,
-                'to': UserBriefSerializer(creditor).data,
+                'from': UserBriefSerializer(debtor, context={'request': request}).data,
+                'to': UserBriefSerializer(creditor, context={'request': request}).data,
                 'amount': str(amount),
             })
 
@@ -164,7 +164,7 @@ class ActivityFeedView(APIView):
                 'id': e.id,
                 'description': e.description,
                 'amount': str(e.amount),
-                'paid_by': UserBriefSerializer(e.paid_by).data,
+                'paid_by': UserBriefSerializer(e.paid_by, context={'request': request}).data,
                 'group': e.group.name if e.group else None,
                 'split_type': e.split_type,
                 'my_share': my_share,
@@ -177,8 +177,8 @@ class ActivityFeedView(APIView):
                 'type': 'settlement',
                 'id': s.id,
                 'amount': str(s.amount),
-                'payer': UserBriefSerializer(s.payer).data,
-                'receiver': UserBriefSerializer(s.receiver).data,
+                'payer': UserBriefSerializer(s.payer, context={'request': request}).data,
+                'receiver': UserBriefSerializer(s.receiver, context={'request': request}).data,
                 'group': s.group.name if s.group else None,
                 'note': s.note,
                 'created_at': s.created_at.isoformat(),

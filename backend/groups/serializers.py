@@ -10,6 +10,15 @@ class UserBriefSerializer(serializers.ModelSerializer):
         model = User
         fields = ('id', 'name', 'email', 'avatar')
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        request = self.context.get('request')
+        if data.get('avatar') and request:
+            data['avatar'] = request.build_absolute_uri(instance.avatar.url)
+        elif data.get('avatar'):
+            data['avatar'] = instance.avatar.url
+        return data
+
 
 class GroupMemberSerializer(serializers.ModelSerializer):
     user = UserBriefSerializer(read_only=True)

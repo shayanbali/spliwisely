@@ -6,6 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 import { getExpenses, getSimplifiedBalances, deleteExpense } from '../../services/expenses';
 import { Group, Expense } from '../../types';
 import BottomModal from '../../components/common/BottomModal';
+import Avatar from '../../components/common/Avatar';
 
 const CURRENCY_SYMBOLS: Record<string, string> = {
   USD: '$', EUR: '€', GBP: '£', CAD: 'CA$', AUD: 'A$', IRR: '﷼',
@@ -147,9 +148,13 @@ export default function GroupDetailScreen({ route, navigation }: any) {
               <Text style={styles.sectionTitle}>Members</Text>
               {group.members.map(m => (
                 <View key={m.id} style={styles.memberRow}>
-                  <View style={styles.avatar}>
-                    <Text style={styles.avatarText}>{m.user.name?.[0] || m.user.email[0]}</Text>
-                  </View>
+                  <Avatar
+                    name={m.user.name}
+                    email={m.user.email}
+                    avatar={m.user.avatar}
+                    size={36}
+                    style={styles.avatarMargin}
+                  />
                   <Text style={styles.memberName}>{m.user.name || m.user.email}</Text>
                   <Text style={styles.memberRole}>{m.role}</Text>
                 </View>
@@ -250,8 +255,7 @@ const styles = StyleSheet.create({
   settlementText: { fontSize: 14, color: '#333' },
   settlementAmount: { fontSize: 14, fontWeight: '700', color: '#1aa672' },
   memberRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8 },
-  avatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#e8f5e9', justifyContent: 'center', alignItems: 'center', marginRight: 10 },
-  avatarText: { fontWeight: '700', color: '#1aa672' },
+  avatarMargin: { marginRight: 10 },
   memberName: { flex: 1, fontSize: 15 },
   memberRole: { fontSize: 12, color: '#999', textTransform: 'capitalize' },
   expenseHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },

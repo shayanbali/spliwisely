@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, FlatList, StyleSheet, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
+import Avatar from '../components/common/Avatar';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { getBalances } from '../services/expenses';
@@ -46,6 +47,7 @@ export default function DashboardScreen({ navigation }: any) {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.greeting}>Hi, {user?.name || user?.email} 👋</Text>
+        <Avatar name={user?.name} email={user?.email} avatar={user?.avatar} size={36} />
       </View>
 
       <View style={[styles.totalCard, { backgroundColor: totalBalance >= 0 ? '#1aa672' : '#e53935' }]}>
@@ -76,9 +78,13 @@ export default function DashboardScreen({ navigation }: any) {
             const isPositive = amount > 0;
             return (
               <View style={styles.balanceRow}>
-                <View style={styles.avatar}>
-                  <Text style={styles.avatarText}>{item.user.name?.[0] || item.user.email[0]}</Text>
-                </View>
+                <Avatar
+                  name={item.user.name}
+                  email={item.user.email}
+                  avatar={item.user.avatar}
+                  size={42}
+                  style={styles.avatarMargin}
+                />
                 <View style={styles.balanceInfo}>
                   <Text style={styles.balanceName}>{item.user.name || item.user.email}</Text>
                   <Text style={styles.balanceSub}>{isPositive ? 'owes you' : 'you owe'}</Text>
@@ -115,8 +121,7 @@ const styles = StyleSheet.create({
   retryBtn: { backgroundColor: '#1aa672', borderRadius: 10, paddingHorizontal: 28, paddingVertical: 12 },
   retryBtnText: { color: '#fff', fontWeight: '600', fontSize: 15 },
   balanceRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', marginHorizontal: 16, marginBottom: 8, padding: 14, borderRadius: 12 },
-  avatar: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#e8f5e9', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
-  avatarText: { fontSize: 18, fontWeight: '700', color: '#1aa672' },
+  avatarMargin: { marginRight: 12 },
   balanceInfo: { flex: 1 },
   balanceName: { fontSize: 15, fontWeight: '600' },
   balanceSub: { fontSize: 12, color: '#999' },

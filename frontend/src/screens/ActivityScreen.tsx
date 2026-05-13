@@ -3,6 +3,7 @@ import { View, Text, FlatList, StyleSheet, ActivityIndicator, RefreshControl, To
 import { useFocusEffect } from '@react-navigation/native';
 import { getActivityFeed } from '../services/expenses';
 import { useAuth } from '../context/AuthContext';
+import Avatar from '../components/common/Avatar';
 
 function timeAgo(isoString: string) {
   const diff = Date.now() - new Date(isoString).getTime();
@@ -74,11 +75,16 @@ export default function ActivityScreen() {
 
     const paidByName = item.i_paid ? 'You' : (item.paid_by.name || item.paid_by.email);
 
+    const paidByUser = item.i_paid ? user : item.paid_by;
     return (
       <View style={styles.card}>
-        <View style={[styles.iconBox, { backgroundColor: '#fff9e6' }]}>
-          <Text style={styles.icon}>💸</Text>
-        </View>
+        <Avatar
+          name={paidByUser?.name}
+          email={paidByUser?.email}
+          avatar={paidByUser?.avatar}
+          size={42}
+          style={styles.avatarMargin}
+        />
         <View style={styles.info}>
           <Text style={styles.title}>{item.description}</Text>
           <Text style={styles.sub}>
@@ -98,10 +104,19 @@ export default function ActivityScreen() {
 
   function renderSettlement(item: any) {
     const isPayer = item.payer.id === user?.id;
+    const displayUser = isPayer ? user : item.payer;
     return (
       <View style={styles.card}>
-        <View style={[styles.iconBox, { backgroundColor: '#e8f5e9' }]}>
-          <Text style={styles.icon}>✅</Text>
+        <View style={styles.settlementAvatarBox}>
+          <Avatar
+            name={displayUser?.name}
+            email={displayUser?.email}
+            avatar={displayUser?.avatar}
+            size={42}
+          />
+          <View style={styles.settlementBadge}>
+            <Text style={{ fontSize: 10 }}>✅</Text>
+          </View>
         </View>
         <View style={styles.info}>
           <Text style={styles.title}>Settlement</Text>
@@ -149,10 +164,16 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f5f5f5' },
   header: { padding: 20, paddingTop: 60, backgroundColor: '#fff' },
   headerTitle: { fontSize: 24, fontWeight: '800' },
-  empty: { textAlign: 'center', color: '#999', marginTop: 40, lineHeight: 22 },
   card: { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: '#fff', borderRadius: 12, padding: 14, marginBottom: 10 },
-  iconBox: { width: 42, height: 42, borderRadius: 21, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
-  icon: { fontSize: 20 },
+  avatarMargin: { marginRight: 12 },
+  settlementAvatarBox: { position: 'relative', marginRight: 12 },
+  settlementBadge: {
+    position: 'absolute', bottom: -2, right: -2,
+    width: 18, height: 18, borderRadius: 9,
+    backgroundColor: '#e8f5e9',
+    justifyContent: 'center', alignItems: 'center',
+    borderWidth: 1.5, borderColor: '#fff',
+  },
   info: { flex: 1 },
   title: { fontSize: 15, fontWeight: '600', marginBottom: 2 },
   sub: { fontSize: 13, color: '#555', lineHeight: 18 },
