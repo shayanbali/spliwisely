@@ -21,7 +21,7 @@ const CURRENCY_NAMES: Record<string, string> = {
   CHF: 'Swiss Franc', CNY: 'Chinese Yuan', INR: 'Indian Rupee',
 };
 
-export default function ProfileScreen() {
+export default function ProfileScreen({ navigation }: any) {
   const { user, setUser, logout } = useAuth();
   const { C, themeKey, setTheme } = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
@@ -209,6 +209,30 @@ export default function ProfileScreen() {
             </View>
           </TouchableOpacity>
         </View>
+
+        {/* ── Credits ── */}
+        <Text style={styles.sectionHeader}>Wallet</Text>
+        <TouchableOpacity
+          style={[styles.creditsCard, S.shadowSm]}
+          onPress={() => navigation.navigate('Credits')}
+          activeOpacity={0.85}
+        >
+          <View style={styles.creditsLeft}>
+            <View style={[styles.iconBadge, { backgroundColor: '#5E5CE6' }]}>
+              <Ionicons name="wallet-outline" size={18} color="#fff" />
+            </View>
+            <View>
+              <Text style={styles.creditsLabel}>Splitwise Credits</Text>
+              <Text style={styles.creditsSub}>Use to settle debts instantly</Text>
+            </View>
+          </View>
+          <View style={styles.rowRight}>
+            <Text style={styles.creditsBalance}>
+              {parseFloat(user?.credits_balance ?? '0').toFixed(2)} SC
+            </Text>
+            <Ionicons name="chevron-forward" size={15} color={C.chevron} />
+          </View>
+        </TouchableOpacity>
 
         {/* ── Account ── */}
         <Text style={styles.sectionHeader}>Account</Text>
@@ -446,6 +470,23 @@ function makeStyles(C: ThemeColors) {
     userInfo: { flex: 1 },
     userName: { fontSize: 20, fontWeight: '600', color: C.text, letterSpacing: -0.4 },
     userEmail: { fontSize: 14, color: C.textSecondary, marginTop: 3 },
+
+    // ── Credits card ──
+    creditsCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginHorizontal: 16,
+      marginBottom: 36,
+      backgroundColor: C.bgElevated,
+      borderRadius: 18,
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+    },
+    creditsLeft: { flexDirection: 'row', alignItems: 'center', gap: 14, flex: 1 },
+    creditsLabel: { fontSize: 17, color: C.text, fontWeight: '500' },
+    creditsSub: { fontSize: 12, color: C.textSecondary, marginTop: 1 },
+    creditsBalance: { fontSize: 17, color: '#5E5CE6', fontWeight: '700', marginRight: 4 },
 
     // ── Section header ──
     sectionHeader: {

@@ -36,6 +36,7 @@ import EditExpenseScreen from '../screens/expenses/EditExpenseScreen';
 import SettleUpScreen from '../screens/expenses/SettleUpScreen';
 import ReceiptScanScreen from '../screens/expenses/ReceiptScanScreen';
 import PotPayOutScreen from '../screens/groups/PotPayOutScreen';
+import CreditsScreen from '../screens/CreditsScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -279,6 +280,7 @@ export default function Navigation() {
               <Stack.Screen name="SettleUp" component={SettleUpScreen} options={modalScreenOptions} />
               <Stack.Screen name="ReceiptScan" component={ReceiptScanScreen} options={modalScreenOptions} />
               <Stack.Screen name="PotPayOut" component={PotPayOutScreen} options={modalScreenOptions} />
+              <Stack.Screen name="Credits" component={CreditsScreen} options={{ animation: 'slide_from_right', animationDuration: 320 }} />
             </>
           ) : (
             <>

@@ -4,6 +4,17 @@ export interface User {
   name: string;
   avatar?: string;
   preferred_currency?: string;
+  credits_balance?: string;
+}
+
+export interface CreditTransaction {
+  id: number;
+  transaction_type: 'transfer_out' | 'transfer_in' | 'topup';
+  amount: string;
+  currency: string;
+  note: string;
+  counterpart?: User | null;
+  created_at: string;
 }
 
 export interface Group {

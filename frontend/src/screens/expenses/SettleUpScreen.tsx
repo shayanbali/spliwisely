@@ -8,6 +8,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useCurrency } from '../../context/CurrencyContext';
 import { useTheme } from '../../context/ThemeContext';
 import { createSettlement } from '../../services/expenses';
+import { transferCredits } from '../../services/credits';
 import BackButton from '../../components/common/BackButton';
 import Avatar from '../../components/common/Avatar';
 import { fmt } from '../../utils/currency';
@@ -20,25 +21,44 @@ export default function SettleUpScreen({ route, navigation }: any) {
   const { C } = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
   const [amount, setAmount] = useState(transaction.amount.toString());
+  const [useCredits, setUseCredits] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const settleCurrency = transaction.currency ?? preferredCurrency;
+  const creditBalance = parseFloat(user?.credits_balance ?? '0');
+  const parsedAmount = parseFloat(amount) || 0;
+  const hasEnoughCredits = creditBalance >= parsedAmount;
 
   async function handleSettle() {
     setLoading(true);
     try {
-      await createSettlement({
-        payer_id: transaction.from.id,
-        receiver_id: transaction.to.id,
-        amount: parseFloat(amount),
-        currency: settleCurrency,
-        group: groupId,
-      });
+      if (useCredits) {
+        if (!hasEnoughCredits) {
+          Alert.alert('Insufficient Credits', `You need ${fmt(parsedAmount, settleCurrency)} in credits but only have ${creditBalance.toFixed(2)} SC.`);
+          return;
+        }
+        await transferCredits({
+          to_user_id: transaction.to.id,
+          amount: parsedAmount,
+          currency: settleCurrency,
+          create_settlement: true,
+          group_id: groupId ?? null,
+        });
+      } else {
+        await createSettlement({
+          payer_id: transaction.from.id,
+          receiver_id: transaction.to.id,
+          amount: parsedAmount,
+          currency: settleCurrency,
+          group: groupId,
+        });
+      }
       onDone?.();
       navigation.goBack();
-      Alert.alert('Done!', 'Settlement recorded.');
-    } catch {
-      Alert.alert('Error', 'Could not record settlement.');
+      Alert.alert('Done!', useCredits ? 'Settled with Splitwise Credits.' : 'Settlement recorded.');
+    } catch (e: any) {
+      const msg = e?.response?.data?.detail ?? 'Could not record settlement.';
+      Alert.alert('Error', msg);
     } finally {
       setLoading(false);
     }
@@ -105,15 +125,72 @@ export default function SettleUpScreen({ route, navigation }: any) {
           </Text>
         </View>
 
+        {/* Pay with Credits toggle */}
+        <Text style={styles.sectionLabel}>Payment Method</Text>
+        <View style={[styles.section, S.shadowSm, { padding: 0, overflow: 'hidden' }]}>
+          <TouchableOpacity
+            style={[styles.payMethodRow, !useCredits && styles.payMethodActive]}
+            onPress={() => setUseCredits(false)}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.payMethodIcon, { backgroundColor: 'rgba(48,209,88,0.15)' }]}>
+              <Ionicons name="cash-outline" size={18} color={C.positive} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.payMethodLabel}>Mark as Paid</Text>
+              <Text style={styles.payMethodSub}>Record an outside payment</Text>
+            </View>
+            {!useCredits && <Ionicons name="checkmark-circle" size={20} color={C.accent} />}
+          </TouchableOpacity>
+
+          <View style={styles.methodSep} />
+
+          <TouchableOpacity
+            style={[styles.payMethodRow, useCredits && styles.payMethodActive]}
+            onPress={() => setUseCredits(true)}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.payMethodIcon, { backgroundColor: 'rgba(94,92,230,0.15)' }]}>
+              <Ionicons name="wallet-outline" size={18} color="#5E5CE6" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.payMethodLabel}>Pay with Credits</Text>
+              <Text style={[
+                styles.payMethodSub,
+                !hasEnoughCredits && useCredits && { color: C.negative },
+              ]}>
+                Balance: {creditBalance.toFixed(2)} SC
+                {useCredits && !hasEnoughCredits ? ' — insufficient' : ''}
+              </Text>
+            </View>
+            {useCredits && <Ionicons name="checkmark-circle" size={20} color="#5E5CE6" />}
+          </TouchableOpacity>
+        </View>
+
         <TouchableOpacity
-          style={styles.button}
+          style={[
+            styles.button,
+            useCredits && { backgroundColor: '#5E5CE6', shadowColor: '#5E5CE6' },
+            (loading || (useCredits && !hasEnoughCredits)) && { opacity: 0.6 },
+          ]}
           onPress={handleSettle}
-          disabled={loading}
+          disabled={loading || (useCredits && !hasEnoughCredits)}
           activeOpacity={0.85}
         >
           {loading
             ? <ActivityIndicator color="#fff" />
-            : <Text style={styles.buttonText}>Record Payment</Text>
+            : (
+              <>
+                <Ionicons
+                  name={useCredits ? 'wallet' : 'checkmark-circle'}
+                  size={18}
+                  color="#fff"
+                />
+                <Text style={styles.buttonText}>
+                  {useCredits ? 'Pay with Credits' : 'Record Payment'}
+                </Text>
+              </>
+            )
           }
         </TouchableOpacity>
       </ScrollView>
@@ -147,37 +224,19 @@ function makeStyles(C: ThemeColors) {
       justifyContent: 'space-around',
     },
     userBox: { alignItems: 'center', gap: 6, flex: 1 },
-    userName: {
-      fontSize: 14,
-      fontWeight: '700',
-      color: C.text,
-      textAlign: 'center',
-    },
+    userName: { fontSize: 14, fontWeight: '700', color: C.text, textAlign: 'center' },
     userLabel: { fontSize: 12, color: C.textSecondary },
     arrowWrap: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
+      width: 36, height: 36, borderRadius: 18,
       backgroundColor: C.accentSoft,
-      alignItems: 'center',
-      justifyContent: 'center',
+      alignItems: 'center', justifyContent: 'center',
       marginHorizontal: 8,
-    },
-    arrow: {
-      fontSize: 20,
-      color: C.accent,
-      fontWeight: '800',
     },
 
     sectionLabel: {
-      fontSize: 13,
-      fontWeight: '600',
-      color: C.textSecondary,
-      textTransform: 'uppercase',
-      letterSpacing: 0.5,
-      marginLeft: 20,
-      marginTop: 24,
-      marginBottom: 8,
+      fontSize: 13, fontWeight: '600', color: C.textSecondary,
+      textTransform: 'uppercase', letterSpacing: 0.5,
+      marginLeft: 20, marginTop: 24, marginBottom: 8,
     },
     section: {
       backgroundColor: C.bgElevated,
@@ -195,12 +254,23 @@ function makeStyles(C: ThemeColors) {
       textAlign: 'center',
       color: C.text,
     },
-    suggested: {
-      textAlign: 'center',
-      color: C.textSecondary,
-      fontSize: 13,
-      marginTop: 10,
+    suggested: { textAlign: 'center', color: C.textSecondary, fontSize: 13, marginTop: 10 },
+
+    payMethodRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: 14,
+      gap: 12,
     },
+    payMethodActive: { backgroundColor: C.accentSoft },
+    payMethodIcon: {
+      width: 36, height: 36, borderRadius: 10,
+      justifyContent: 'center', alignItems: 'center',
+    },
+    payMethodLabel: { fontSize: 15, fontWeight: '600', color: C.text },
+    payMethodSub: { fontSize: 12, color: C.textSecondary, marginTop: 1 },
+    methodSep: { height: StyleSheet.hairlineWidth, backgroundColor: C.separator, marginLeft: 62 },
+
     button: {
       backgroundColor: C.accent,
       marginHorizontal: 16,
@@ -208,6 +278,9 @@ function makeStyles(C: ThemeColors) {
       borderRadius: 16,
       padding: 18,
       alignItems: 'center',
+      flexDirection: 'row',
+      justifyContent: 'center',
+      gap: 8,
       shadowColor: C.accent,
       shadowOffset: { width: 0, height: 6 },
       shadowOpacity: 0.3,
