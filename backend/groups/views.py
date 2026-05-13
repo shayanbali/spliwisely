@@ -2,8 +2,9 @@ from rest_framework import generics, permissions, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
-from .models import Group, GroupMember, Friendship
-from .serializers import GroupSerializer, AddMemberSerializer, FriendshipSerializer
+from decimal import Decimal
+from .models import Group, GroupMember, Friendship, PotTransaction
+from .serializers import GroupSerializer, AddMemberSerializer, FriendshipSerializer, PotTransactionSerializer
 
 
 class GroupListCreateView(generics.ListCreateAPIView):
@@ -54,3 +55,37 @@ class FriendListView(generics.ListAPIView):
 
     def get_queryset(self):
         return Friendship.objects.filter(from_user=self.request.user).select_related('to_user')
+
+
+class PotTransactionListCreateView(generics.ListCreateAPIView):
+    serializer_class = PotTransactionSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_group(self):
+        return get_object_or_404(Group, pk=self.kwargs['pk'], members__user=self.request.user)
+
+    def get_queryset(self):
+        return PotTransaction.objects.filter(
+            group=self.get_group()
+        ).select_related('user').order_by('-created_at')
+
+    def perform_create(self, serializer):
+        serializer.save(group=self.get_group())
+
+
+class PotBalanceView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, pk):
+        group = get_object_or_404(Group, pk=pk, members__user=request.user)
+        transactions = PotTransaction.objects.filter(group=group)
+        total = Decimal('0')
+        for t in transactions:
+            if t.transaction_type == PotTransaction.CONTRIBUTION:
+                total += t.amount
+            else:
+                total -= t.amount
+        return Response({
+            'balance': str(round(total, 2)),
+            'currency': group.currency,
+        })

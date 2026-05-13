@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from groups.serializers import UserBriefSerializer
-from .models import Expense, ExpenseSplit, Settlement
+from .models import Expense, ExpenseSplit, Settlement, RecurringExpense
 
 User = get_user_model()
 
@@ -35,20 +35,32 @@ class ExpenseSerializer(serializers.ModelSerializer):
     class Meta:
         model = Expense
         fields = (
-            'id', 'group', 'description', 'notes', 'amount', 'currency', 'paid_by', 'paid_by_id',
-            'split_type', 'splits', 'participant_ids', 'exact_amounts',
-            'percentages', 'created_at',
+            'id', 'group', 'description', 'notes', 'image', 'receipt_data', 'amount', 'currency',
+            'paid_by', 'paid_by_id', 'split_type', 'splits', 'participant_ids', 'exact_amounts',
+            'percentages', 'recurring', 'created_at',
         )
 
-    def validate(self, data):
-        split_type = data.get('split_type', 'equal')
-        amount = data.get('amount')
-        participant_ids = data.get('participant_ids', [])
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        request = self.context.get('request')
+        if data.get('image'):
+            data['image'] = request.build_absolute_uri(instance.image.url) if request else instance.image.url
+        return data
 
+    def validate(self, data):
+        # On partial updates (e.g. image-only PATCH), skip split validation entirely
+        # if participant_ids wasn't included in the request.
+        if 'participant_ids' not in data:
+            return data
+
+        participant_ids = data['participant_ids']
         if not participant_ids:
             raise serializers.ValidationError('At least one participant is required.')
 
-        if split_type == 'exact':
+        split_type = data.get('split_type', getattr(self.instance, 'split_type', 'equal'))
+        amount = data.get('amount', getattr(self.instance, 'amount', None))
+
+        if split_type == 'exact' and amount is not None:
             exact_amounts = data.get('exact_amounts', {})
             total = sum(exact_amounts.values())
             if round(float(total), 2) != round(float(amount), 2):
@@ -124,6 +136,29 @@ class ExpenseSerializer(serializers.ModelSerializer):
                     ExpenseSplit.objects.create(expense=instance, user=user, amount=split_amount)
 
         return instance
+
+
+class RecurringExpenseSerializer(serializers.ModelSerializer):
+    paid_by = UserBriefSerializer(read_only=True)
+    paid_by_id = serializers.PrimaryKeyRelatedField(
+        queryset=get_user_model().objects.all(), source='paid_by', write_only=True
+    )
+
+    class Meta:
+        model = RecurringExpense
+        fields = (
+            'id', 'group', 'description', 'notes', 'amount', 'currency',
+            'paid_by', 'paid_by_id', 'split_type',
+            'participant_ids', 'exact_amounts', 'percentages',
+            'interval', 'next_due', 'is_active', 'created_at',
+        )
+        read_only_fields = ('next_due', 'created_at')
+
+    def create(self, validated_data):
+        from datetime import date
+        validated_data['next_due'] = date.today()
+        validated_data['created_by'] = self.context['request'].user
+        return super().create(validated_data)
 
 
 class SettlementSerializer(serializers.ModelSerializer):

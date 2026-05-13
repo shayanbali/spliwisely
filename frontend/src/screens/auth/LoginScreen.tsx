@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, ActivityIndicator, Alert, KeyboardAvoidingView, Platform,
@@ -8,7 +8,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuth } from '../../context/AuthContext';
-import { C } from '../../theme';
+import { useTheme } from '../../context/ThemeContext';
+import { ThemeColors } from '../../theme';
 
 type Props = {
   navigation: NativeStackNavigationProp<any>;
@@ -16,6 +17,8 @@ type Props = {
 
 export default function LoginScreen({ navigation }: Props) {
   const { login } = useAuth();
+  const { C } = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -37,7 +40,7 @@ export default function LoginScreen({ navigation }: Props) {
 
   return (
     <LinearGradient
-      colors={['#E8F9F0', '#F2F2F7']}
+      colors={C.bgGradient}
       style={styles.gradient}
       start={{ x: 0.5, y: 0 }}
       end={{ x: 0.5, y: 1 }}
@@ -107,78 +110,80 @@ export default function LoginScreen({ navigation }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  gradient: { flex: 1 },
-  flex: { flex: 1 },
-  container: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 40,
-  },
-  iconWrap: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  iconCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: C.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: C.accent,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: '800',
-    letterSpacing: -0.5,
-    color: C.text,
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: C.textSecondary,
-    textAlign: 'center',
-    marginBottom: 32,
-  },
-  form: {
-    width: '100%',
-  },
-  input: {
-    backgroundColor: C.inputFill,
-    borderWidth: 0,
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 12,
-    fontSize: 16,
-    color: C.text,
-  },
-  button: {
-    backgroundColor: C.accent,
-    borderRadius: 16,
-    padding: 16,
-    alignItems: 'center',
-    marginTop: 12,
-    marginBottom: 16,
-    shadowColor: C.accent,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 4,
-  },
-  buttonDisabled: { opacity: 0.7 },
-  buttonText: { color: '#fff', fontSize: 17, fontWeight: '700' },
-  linkWrap: { alignItems: 'center', paddingVertical: 8 },
-  link: {
-    textAlign: 'center',
-    color: C.textSecondary,
-    fontSize: 14,
-  },
-  linkBold: { color: C.accent, fontWeight: '700' },
-});
+function makeStyles(C: ThemeColors) {
+  return StyleSheet.create({
+    gradient: { flex: 1 },
+    flex: { flex: 1 },
+    container: {
+      flexGrow: 1,
+      justifyContent: 'center',
+      paddingHorizontal: 24,
+      paddingVertical: 40,
+    },
+    iconWrap: {
+      alignItems: 'center',
+      marginBottom: 24,
+    },
+    iconCircle: {
+      width: 80,
+      height: 80,
+      borderRadius: 40,
+      backgroundColor: C.accent,
+      alignItems: 'center',
+      justifyContent: 'center',
+      shadowColor: C.accent,
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.3,
+      shadowRadius: 16,
+      elevation: 8,
+    },
+    title: {
+      fontSize: 32,
+      fontWeight: '800',
+      letterSpacing: -0.5,
+      color: C.text,
+      textAlign: 'center',
+      marginBottom: 8,
+    },
+    subtitle: {
+      fontSize: 16,
+      color: C.textSecondary,
+      textAlign: 'center',
+      marginBottom: 32,
+    },
+    form: {
+      width: '100%',
+    },
+    input: {
+      backgroundColor: C.inputFill,
+      borderWidth: 0,
+      borderRadius: 14,
+      padding: 14,
+      marginBottom: 12,
+      fontSize: 16,
+      color: C.text,
+    },
+    button: {
+      backgroundColor: C.accent,
+      borderRadius: 16,
+      padding: 16,
+      alignItems: 'center',
+      marginTop: 12,
+      marginBottom: 16,
+      shadowColor: C.accent,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.25,
+      shadowRadius: 10,
+      elevation: 4,
+    },
+    buttonDisabled: { opacity: 0.7 },
+    buttonText: { color: '#fff', fontSize: 17, fontWeight: '700' },
+    linkWrap: { alignItems: 'center', paddingVertical: 8 },
+    link: {
+      textAlign: 'center',
+      color: C.textSecondary,
+      fontSize: 14,
+    },
+    linkBold: { color: C.accent, fontWeight: '700' },
+  });
+}

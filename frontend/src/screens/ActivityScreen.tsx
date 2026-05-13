@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useMemo, useCallback, useState } from 'react';
 import {
   View, Text, FlatList, StyleSheet, ActivityIndicator,
   RefreshControl, TouchableOpacity,
@@ -8,24 +8,33 @@ import { useFocusEffect } from '@react-navigation/native';
 import { getActivityFeed } from '../services/expenses';
 import { useAuth } from '../context/AuthContext';
 import { useCurrency } from '../context/CurrencyContext';
+import { useTheme } from '../context/ThemeContext';
 import Avatar from '../components/common/Avatar';
 import { fmt } from '../utils/currency';
-import { C, S, TAB_PAD } from '../theme';
+import { S, TAB_PAD, ThemeColors } from '../theme';
 
 function timeAgo(isoString: string) {
-  const diff = Date.now() - new Date(isoString).getTime();
-  const mins = Math.floor(diff / 60000);
+  const d = new Date(isoString);
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const mins = Math.floor(diffMs / 60000);
   if (mins < 1) return 'just now';
   if (mins < 60) return `${mins}m ago`;
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  return `${days}d ago`;
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
+  const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
+  if (d.getFullYear() !== now.getFullYear()) opts.year = 'numeric';
+  return d.toLocaleDateString('en-US', opts);
 }
 
 export default function ActivityScreen() {
   const { user } = useAuth();
   const { converted, preferredCurrency } = useCurrency();
+  const { C } = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -210,128 +219,129 @@ export default function ActivityScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.bg },
-  centerBox: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
+function makeStyles(C: ThemeColors) {
+  return StyleSheet.create({
+    container: { flex: 1 },
+    centerBox: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
 
-  header: {
-    paddingTop: 60,
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-    backgroundColor: C.bg,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-  },
-  headerTitle: {
-    fontSize: 34,
-    fontWeight: '800',
-    letterSpacing: -0.5,
-    color: C.text,
-  },
-  currencyPill: {
-    backgroundColor: 'rgba(48,209,88,0.12)',
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    marginBottom: 6,
-  },
-  currencyPillText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: C.accent,
-    letterSpacing: 0.3,
-  },
+    header: {
+      paddingTop: 60,
+      paddingHorizontal: 20,
+      paddingBottom: 16,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-end',
+    },
+    headerTitle: {
+      fontSize: 34,
+      fontWeight: '800',
+      letterSpacing: -0.5,
+      color: C.text,
+    },
+    currencyPill: {
+      backgroundColor: C.accentSoft,
+      borderRadius: 10,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      marginBottom: 6,
+    },
+    currencyPillText: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: C.accent,
+      letterSpacing: 0.3,
+    },
 
-  card: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: C.bgElevated,
-    borderRadius: 20,
-    padding: 14,
-    marginBottom: 10,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.8)',
-  },
-  avatarMargin: { marginRight: 12 },
-  settlementAvatarBox: { position: 'relative', marginRight: 12 },
-  settlementBadge: {
-    position: 'absolute',
-    bottom: -2,
-    right: -2,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: '#E8F9F0',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: '#fff',
-  },
-  info: { flex: 1 },
-  title: {
-    fontSize: 15,
-    fontWeight: '700',
-    marginBottom: 2,
-    color: C.text,
-  },
-  amountRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' },
-  sub: { fontSize: 13, color: C.textSecondary },
-  amountMain: { fontSize: 13, fontWeight: '700', color: C.text },
-  amountConverted: { fontSize: 12, color: C.textTertiary },
-  groupTag: { fontSize: 12, color: C.textTertiary, marginTop: 1 },
-  tagRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
-  badgePill: {
-    backgroundColor: 'rgba(48,209,88,0.12)',
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-  },
-  badge: {
-    fontSize: 11,
-    color: C.accent,
-    fontWeight: '700',
-    textTransform: 'capitalize',
-    letterSpacing: 0.2,
-  },
-  shareTag: { fontSize: 11, fontWeight: '700' },
-  note: { marginTop: 4, fontSize: 12, color: C.textSecondary, fontStyle: 'italic' },
-  time: { fontSize: 11, color: C.textMuted, marginLeft: 8, marginTop: 2 },
+    card: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      backgroundColor: C.bgElevated,
+      borderRadius: 20,
+      padding: 14,
+      marginBottom: 10,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: 'rgba(255,255,255,0.8)',
+    },
+    avatarMargin: { marginRight: 12 },
+    settlementAvatarBox: { position: 'relative', marginRight: 12 },
+    settlementBadge: {
+      position: 'absolute',
+      bottom: -2,
+      right: -2,
+      width: 18,
+      height: 18,
+      borderRadius: 9,
+      backgroundColor: C.accentSoft,
+      justifyContent: 'center',
+      alignItems: 'center',
+      borderWidth: 1.5,
+      borderColor: '#fff',
+    },
+    info: { flex: 1 },
+    title: {
+      fontSize: 15,
+      fontWeight: '700',
+      marginBottom: 2,
+      color: C.text,
+    },
+    amountRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' },
+    sub: { fontSize: 13, color: C.textSecondary },
+    amountMain: { fontSize: 13, fontWeight: '700', color: C.text },
+    amountConverted: { fontSize: 12, color: C.textTertiary },
+    groupTag: { fontSize: 12, color: C.textTertiary, marginTop: 1 },
+    tagRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
+    badgePill: {
+      backgroundColor: C.accentSoft,
+      borderRadius: 8,
+      paddingHorizontal: 8,
+      paddingVertical: 2,
+    },
+    badge: {
+      fontSize: 11,
+      color: C.accent,
+      fontWeight: '700',
+      textTransform: 'capitalize',
+      letterSpacing: 0.2,
+    },
+    shareTag: { fontSize: 11, fontWeight: '700' },
+    note: { marginTop: 4, fontSize: 12, color: C.textSecondary, fontStyle: 'italic' },
+    time: { fontSize: 11, color: C.textMuted, marginLeft: 8, marginTop: 2 },
 
-  emptyBox: { alignItems: 'center', marginTop: 60, padding: 24 },
-  emptyIconCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: C.accentSoft,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    marginBottom: 6,
-    color: C.text,
-  },
-  emptySub: {
-    fontSize: 14,
-    color: C.textSecondary,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
+    emptyBox: { alignItems: 'center', marginTop: 60, padding: 24 },
+    emptyIconCircle: {
+      width: 72,
+      height: 72,
+      borderRadius: 36,
+      backgroundColor: C.accentSoft,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: 16,
+    },
+    emptyTitle: {
+      fontSize: 20,
+      fontWeight: '700',
+      marginBottom: 6,
+      color: C.text,
+    },
+    emptySub: {
+      fontSize: 14,
+      color: C.textSecondary,
+      textAlign: 'center',
+      lineHeight: 20,
+    },
 
-  errorText: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: C.text,
-    marginBottom: 20,
-  },
-  retryBtn: {
-    backgroundColor: C.accent,
-    borderRadius: 16,
-    paddingHorizontal: 28,
-    paddingVertical: 14,
-  },
-  retryBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
-});
+    errorText: {
+      fontSize: 17,
+      fontWeight: '600',
+      color: C.text,
+      marginBottom: 20,
+    },
+    retryBtn: {
+      backgroundColor: C.accent,
+      borderRadius: 16,
+      paddingHorizontal: 28,
+      paddingVertical: 14,
+    },
+    retryBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  });
+}

@@ -22,6 +22,26 @@ class MeView(generics.RetrieveUpdateAPIView):
         return self.request.user
 
 
+class ChangePasswordView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        current = request.data.get('current_password', '')
+        new = request.data.get('new_password', '')
+        confirm = request.data.get('confirm_password', '')
+
+        if not request.user.check_password(current):
+            return Response({'detail': 'Current password is incorrect.'}, status=status.HTTP_400_BAD_REQUEST)
+        if len(new) < 8:
+            return Response({'detail': 'New password must be at least 8 characters.'}, status=status.HTTP_400_BAD_REQUEST)
+        if new != confirm:
+            return Response({'detail': 'New passwords do not match.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        request.user.set_password(new)
+        request.user.save()
+        return Response({'detail': 'Password changed successfully.'})
+
+
 class RegisterPushTokenView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 

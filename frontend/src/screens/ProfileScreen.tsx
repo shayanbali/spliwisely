@@ -1,59 +1,68 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, TextInput, TouchableOpacity,
   ActivityIndicator, Alert, ScrollView,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import Avatar from '../components/common/Avatar';
+import BottomModal from '../components/common/BottomModal';
 import api from '../services/api';
 import { CURRENCIES, symbolOf } from '../utils/currency';
-import { C, S, TAB_PAD } from '../theme';
+import { S, TAB_PAD, ThemeColors, THEME_META, ThemeKey, THEMES } from '../theme';
+
+const CURRENCY_NAMES: Record<string, string> = {
+  USD: 'US Dollar', EUR: 'Euro', GBP: 'British Pound',
+  CAD: 'Canadian Dollar', AUD: 'Australian Dollar', JPY: 'Japanese Yen',
+  CHF: 'Swiss Franc', CNY: 'Chinese Yuan', INR: 'Indian Rupee',
+};
 
 export default function ProfileScreen() {
   const { user, setUser, logout } = useAuth();
+  const { C, themeKey, setTheme } = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
+
+  const insets = useSafeAreaInsets();
   const [name, setName] = useState(user?.name ?? '');
-  const [preferredCurrency, setPreferredCurrency] = useState(
-    user?.preferred_currency ?? 'USD',
-  );
+  const [preferredCurrency, setPreferredCurrency] = useState(user?.preferred_currency ?? 'USD');
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
   const [savingCurrency, setSavingCurrency] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [nameSheetVisible, setNameSheetVisible] = useState(false);
+  const [currencyPickerVisible, setCurrencyPickerVisible] = useState(false);
+  const [themeSheetVisible, setThemeSheetVisible] = useState(false);
+  const [pwSheetVisible, setPwSheetVisible] = useState(false);
+  const [currentPw, setCurrentPw] = useState('');
+  const [newPw, setNewPw] = useState('');
+  const [confirmPw, setConfirmPw] = useState('');
+  const [showCurrentPw, setShowCurrentPw] = useState(false);
+  const [showNewPw, setShowNewPw] = useState(false);
+  const [showConfirmPw, setShowConfirmPw] = useState(false);
+  const [savingPw, setSavingPw] = useState(false);
 
   async function handlePickAvatar() {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert(
-        'Permission needed',
-        'Allow access to your photo library to set a profile picture.',
-      );
+      Alert.alert('Permission needed', 'Allow access to your photo library to set a profile picture.');
       return;
     }
-
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.7,
     });
-
     if (result.canceled) return;
-
     const asset = result.assets[0];
     setUploadingAvatar(true);
     try {
       const form = new FormData();
-      form.append('avatar', {
-        uri: asset.uri,
-        name: 'avatar.jpg',
-        type: 'image/jpeg',
-      } as any);
-
-      const { data } = await api.patch('/auth/me/', form, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      form.append('avatar', { uri: asset.uri, name: 'avatar.jpg', type: 'image/jpeg' } as any);
+      const { data } = await api.patch('/auth/me/', form, { headers: { 'Content-Type': 'multipart/form-data' } });
       setUser(data);
     } catch {
       Alert.alert('Error', 'Could not upload photo.');
@@ -75,14 +84,13 @@ export default function ProfileScreen() {
     }
   }
 
-  async function handleSave() {
-    if (!name.trim()) return;
+  async function handleSaveName() {
+    if (!name.trim() || name === user?.name) return;
     setSaving(true);
-    setSaved(false);
     try {
       const { data } = await api.patch('/auth/me/', { name: name.trim() });
       setUser(data);
-      setSaved(true);
+      setNameSheetVisible(false);
     } catch {
       Alert.alert('Error', 'Could not update profile.');
     } finally {
@@ -90,257 +98,520 @@ export default function ProfileScreen() {
     }
   }
 
-  const nameDirty = name.trim().length > 0 && name !== user?.name;
+  function openNameSheet() {
+    setName(user?.name ?? '');
+    setNameSheetVisible(true);
+  }
+
+  function openPwSheet() {
+    setCurrentPw(''); setNewPw(''); setConfirmPw('');
+    setShowCurrentPw(false); setShowNewPw(false); setShowConfirmPw(false);
+    setPwSheetVisible(true);
+  }
+
+  async function handleChangePassword() {
+    if (!currentPw || !newPw || !confirmPw) return;
+    if (newPw !== confirmPw) {
+      Alert.alert('Error', 'New passwords do not match.');
+      return;
+    }
+    if (newPw.length < 8) {
+      Alert.alert('Error', 'New password must be at least 8 characters.');
+      return;
+    }
+    setSavingPw(true);
+    try {
+      await api.post('/auth/change-password/', {
+        current_password: currentPw,
+        new_password: newPw,
+        confirm_password: confirmPw,
+      });
+      setPwSheetVisible(false);
+      Alert.alert('Success', 'Password changed successfully.');
+    } catch (e: any) {
+      const msg = e?.response?.data?.detail ?? 'Could not change password.';
+      Alert.alert('Error', msg);
+    } finally {
+      setSavingPw(false);
+    }
+  }
+
+  const nameDirty = name.trim().length > 0 && name.trim() !== user?.name;
+  const pwReady = currentPw.length > 0 && newPw.length >= 8 && confirmPw.length > 0;
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      showsVerticalScrollIndicator={false}
-    >
-      {/* Top hero section */}
-      <View style={styles.hero}>
+    <>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={[styles.content, { paddingTop: insets.top + 8 }]}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* ── Page title ── */}
+        <Text style={styles.pageTitle}>Profile</Text>
+
+        {/* ── User card ── */}
         <TouchableOpacity
-          onPress={handlePickAvatar}
-          disabled={uploadingAvatar}
+          style={[styles.userCard, S.shadow]}
+          onPress={openNameSheet}
           activeOpacity={0.85}
         >
-          <Avatar
-            name={user?.name}
-            email={user?.email}
-            avatar={user?.avatar}
-            size={88}
-            fontSize={36}
-          />
-          <View style={styles.cameraOverlay}>
-            {uploadingAvatar
-              ? <ActivityIndicator color="#fff" size="small" />
-              : <Ionicons name="camera" size={14} color="#fff" />
-            }
-          </View>
-        </TouchableOpacity>
-        <Text style={styles.heroName}>{user?.name || user?.email}</Text>
-        <Text style={styles.heroEmail}>{user?.email}</Text>
-      </View>
-
-      {/* Display name card */}
-      <Text style={styles.sectionLabel}>Display Name</Text>
-      <View style={[styles.card, S.shadowSm]}>
-        <View style={styles.cardInner}>
-          <TextInput
-            style={styles.input}
-            value={name}
-            onChangeText={v => { setName(v); setSaved(false); }}
-            placeholder="Your name"
-            placeholderTextColor={C.placeholder}
-            autoCapitalize="words"
-          />
-
           <TouchableOpacity
-            style={[styles.saveBtn, !nameDirty && styles.saveBtnDisabled]}
-            onPress={handleSave}
-            disabled={saving || !nameDirty}
-            activeOpacity={0.85}
+            onPress={handlePickAvatar}
+            disabled={uploadingAvatar}
+            activeOpacity={0.8}
+            style={styles.avatarBtn}
           >
-            {saving
-              ? <ActivityIndicator color="#fff" />
-              : (
-                <Text style={styles.saveBtnText}>
-                  {saved ? '✓ Saved' : 'Save Changes'}
-                </Text>
-              )
-            }
+            <Avatar name={user?.name} email={user?.email} avatar={user?.avatar} size={68} fontSize={26} />
+            <View style={styles.cameraOverlay}>
+              {uploadingAvatar
+                ? <ActivityIndicator color="#fff" size="small" />
+                : <Ionicons name="camera" size={13} color="#fff" />
+              }
+            </View>
+          </TouchableOpacity>
+
+          <View style={styles.userInfo}>
+            <Text style={styles.userName}>{user?.name || 'Set Name'}</Text>
+            <Text style={styles.userEmail}>{user?.email}</Text>
+          </View>
+
+          <Ionicons name="chevron-forward" size={18} color={C.chevron} />
+        </TouchableOpacity>
+
+        {/* ── Preferences ── */}
+        <Text style={styles.sectionHeader}>Preferences</Text>
+        <View style={[styles.card, S.shadowSm]}>
+
+          <TouchableOpacity style={styles.row} onPress={() => setCurrencyPickerVisible(true)} activeOpacity={0.75}>
+            <View style={[styles.iconBadge, { backgroundColor: C.accent }]}>
+              <Text style={styles.badgeCurrencyText}>{symbolOf(preferredCurrency).trim()}</Text>
+            </View>
+            <Text style={styles.rowLabel}>Currency</Text>
+            <View style={styles.rowRight}>
+              {savingCurrency
+                ? <ActivityIndicator size="small" color={C.accent} />
+                : <Text style={styles.rowValue}>{preferredCurrency}</Text>
+              }
+              <Ionicons name="chevron-forward" size={15} color={C.chevron} />
+            </View>
+          </TouchableOpacity>
+
+          <View style={styles.rowSep} />
+
+          <TouchableOpacity style={styles.row} onPress={() => setThemeSheetVisible(true)} activeOpacity={0.75}>
+            <View style={[styles.iconBadge, { backgroundColor: '#8E44AD' }]}>
+              <Ionicons name="color-palette-outline" size={18} color="#fff" />
+            </View>
+            <Text style={styles.rowLabel}>Appearance</Text>
+            <View style={styles.rowRight}>
+              <Text style={styles.rowValue}>{THEME_META[themeKey].emoji} {THEME_META[themeKey].label}</Text>
+              <Ionicons name="chevron-forward" size={15} color={C.chevron} />
+            </View>
           </TouchableOpacity>
         </View>
-      </View>
 
-      {/* Preferred currency card */}
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionLabelInline}>Preferred Currency</Text>
-        {savingCurrency && <ActivityIndicator size="small" color={C.accent} />}
-      </View>
-      <View style={[styles.card, S.shadowSm]}>
-        <View style={styles.cardInner}>
-          <Text style={styles.currencyHint}>
-            All balances and totals will be shown in this currency.
-          </Text>
-          <View style={styles.currencyGrid}>
-            {CURRENCIES.map(c => {
-              const active = preferredCurrency === c;
-              return (
-                <TouchableOpacity
-                  key={c}
-                  style={[styles.currencyChip, active && styles.currencyChipActive]}
-                  onPress={() => handleSaveCurrency(c)}
-                  activeOpacity={0.85}
-                >
-                  <Text
-                    style={[
-                      styles.currencyChipSym,
-                      active && styles.currencyChipTextActive,
-                    ]}
-                  >
-                    {symbolOf(c).trim()}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.currencyChipCode,
-                      active && styles.currencyChipTextActive,
-                    ]}
-                  >
-                    {c}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+        {/* ── Account ── */}
+        <Text style={styles.sectionHeader}>Account</Text>
+        <View style={[styles.card, S.shadowSm]}>
+          <TouchableOpacity style={styles.row} onPress={openPwSheet} activeOpacity={0.75}>
+            <View style={[styles.iconBadge, { backgroundColor: '#3478F6' }]}>
+              <Ionicons name="key-outline" size={18} color="#fff" />
+            </View>
+            <Text style={styles.rowLabel}>Change Password</Text>
+            <View style={styles.rowRight}>
+              <Ionicons name="chevron-forward" size={15} color={C.chevron} />
+            </View>
+          </TouchableOpacity>
+
+          <View style={styles.rowSep} />
+
+          <TouchableOpacity style={styles.row} onPress={logout} activeOpacity={0.75}>
+            <View style={[styles.iconBadge, { backgroundColor: C.negative }]}>
+              <Ionicons name="log-out-outline" size={18} color="#fff" />
+            </View>
+            <Text style={[styles.rowLabel, { color: C.negative }]}>Log Out</Text>
+            <View style={styles.rowRight}>
+              <Ionicons name="chevron-forward" size={15} color={C.chevron} />
+            </View>
+          </TouchableOpacity>
         </View>
-      </View>
+      </ScrollView>
 
-      {/* Account card */}
-      <Text style={styles.sectionLabel}>Account</Text>
-      <View style={[styles.card, S.shadowSm]}>
+      {/* ── Name edit sheet ── */}
+      <BottomModal
+        visible={nameSheetVisible}
+        onClose={() => setNameSheetVisible(false)}
+      >
+        <Text style={styles.sheetTitle}>Display Name</Text>
+        <TextInput
+          style={styles.sheetInput}
+          value={name}
+          onChangeText={setName}
+          placeholder="Your name"
+          placeholderTextColor={C.placeholder}
+          autoCapitalize="words"
+          autoFocus
+          returnKeyType="done"
+          onSubmitEditing={handleSaveName}
+        />
         <TouchableOpacity
-          style={styles.logoutRow}
-          onPress={logout}
-          activeOpacity={0.7}
+          style={[styles.sheetSaveBtn, !nameDirty && styles.sheetSaveBtnDisabled]}
+          onPress={handleSaveName}
+          disabled={saving || !nameDirty}
+          activeOpacity={0.85}
         >
-          <Text style={styles.logoutText}>Log out</Text>
-          <Text style={styles.chevron}>›</Text>
+          {saving
+            ? <ActivityIndicator color="#fff" />
+            : <Text style={styles.sheetSaveBtnText}>Save</Text>
+          }
         </TouchableOpacity>
-      </View>
-    </ScrollView>
+      </BottomModal>
+
+      {/* ── Theme picker sheet ── */}
+      <BottomModal
+        visible={themeSheetVisible}
+        onClose={() => setThemeSheetVisible(false)}
+      >
+        <Text style={styles.sheetTitle}>Appearance</Text>
+        {(Object.keys(THEME_META) as ThemeKey[]).map((key, i, arr) => {
+          const meta = THEME_META[key];
+          const theme = THEMES[key];
+          const active = themeKey === key;
+          const isLast = i === arr.length - 1;
+          return (
+            <React.Fragment key={key}>
+              <TouchableOpacity
+                style={styles.themeRow}
+                onPress={() => { setTheme(key); setThemeSheetVisible(false); }}
+                activeOpacity={0.7}
+              >
+                <LinearGradient
+                  colors={theme.bgGradient}
+                  style={styles.themeSwatch}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                />
+                <Text style={styles.themeEmoji}>{meta.emoji}</Text>
+                <Text style={[styles.themeLabel, active && { color: C.accent, fontWeight: '700' }]}>
+                  {meta.label}
+                </Text>
+                {active && <Ionicons name="checkmark" size={20} color={C.accent} />}
+              </TouchableOpacity>
+              {!isLast && <View style={styles.pickerSep} />}
+            </React.Fragment>
+          );
+        })}
+      </BottomModal>
+
+      {/* ── Change password sheet ── */}
+      <BottomModal
+        visible={pwSheetVisible}
+        onClose={() => setPwSheetVisible(false)}
+      >
+        <Text style={styles.sheetTitle}>Change Password</Text>
+
+        <Text style={styles.pwFieldLabel}>Current Password</Text>
+        <View style={styles.pwInputRow}>
+          <TextInput
+            style={styles.pwInput}
+            value={currentPw}
+            onChangeText={setCurrentPw}
+            placeholder="Enter current password"
+            placeholderTextColor={C.placeholder}
+            secureTextEntry={!showCurrentPw}
+            autoFocus
+          />
+          <TouchableOpacity onPress={() => setShowCurrentPw(v => !v)} style={styles.pwEye}>
+            <Ionicons name={showCurrentPw ? 'eye-off-outline' : 'eye-outline'} size={20} color={C.textSecondary} />
+          </TouchableOpacity>
+        </View>
+
+        <Text style={styles.pwFieldLabel}>New Password</Text>
+        <View style={styles.pwInputRow}>
+          <TextInput
+            style={styles.pwInput}
+            value={newPw}
+            onChangeText={setNewPw}
+            placeholder="At least 8 characters"
+            placeholderTextColor={C.placeholder}
+            secureTextEntry={!showNewPw}
+          />
+          <TouchableOpacity onPress={() => setShowNewPw(v => !v)} style={styles.pwEye}>
+            <Ionicons name={showNewPw ? 'eye-off-outline' : 'eye-outline'} size={20} color={C.textSecondary} />
+          </TouchableOpacity>
+        </View>
+
+        <Text style={styles.pwFieldLabel}>Confirm New Password</Text>
+        <View style={[styles.pwInputRow, { marginBottom: 20 }]}>
+          <TextInput
+            style={styles.pwInput}
+            value={confirmPw}
+            onChangeText={setConfirmPw}
+            placeholder="Repeat new password"
+            placeholderTextColor={C.placeholder}
+            secureTextEntry={!showConfirmPw}
+            returnKeyType="done"
+            onSubmitEditing={handleChangePassword}
+          />
+          <TouchableOpacity onPress={() => setShowConfirmPw(v => !v)} style={styles.pwEye}>
+            <Ionicons name={showConfirmPw ? 'eye-off-outline' : 'eye-outline'} size={20} color={C.textSecondary} />
+          </TouchableOpacity>
+        </View>
+
+        <TouchableOpacity
+          style={[styles.sheetSaveBtn, !pwReady && styles.sheetSaveBtnDisabled]}
+          onPress={handleChangePassword}
+          disabled={savingPw || !pwReady}
+          activeOpacity={0.85}
+        >
+          {savingPw
+            ? <ActivityIndicator color="#fff" />
+            : <Text style={styles.sheetSaveBtnText}>Update Password</Text>
+          }
+        </TouchableOpacity>
+      </BottomModal>
+
+      {/* ── Currency picker sheet ── */}
+      <BottomModal
+        visible={currencyPickerVisible}
+        onClose={() => setCurrencyPickerVisible(false)}
+      >
+        <Text style={styles.sheetTitle}>Preferred Currency</Text>
+        {CURRENCIES.map((c, i) => {
+          const active = preferredCurrency === c;
+          return (
+            <TouchableOpacity
+              key={c}
+              style={[styles.currencyRow, i > 0 && styles.pickerSep]}
+              onPress={() => { setCurrencyPickerVisible(false); handleSaveCurrency(c); }}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.currencySymbolBadge, { backgroundColor: C.accentSoft }]}>
+                <Text style={[styles.currencySymbolText, { color: C.accent }]}>{symbolOf(c).trim()}</Text>
+              </View>
+              <View style={styles.currencyInfo}>
+                <Text style={[styles.currencyCode, active && { color: C.accent }]}>{c}</Text>
+                <Text style={styles.currencyName}>{CURRENCY_NAMES[c] ?? ''}</Text>
+              </View>
+              {active && <Ionicons name="checkmark" size={18} color={C.accent} />}
+            </TouchableOpacity>
+          );
+        })}
+      </BottomModal>
+    </>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.bg },
-  content: { paddingBottom: TAB_PAD, paddingTop: 60 },
+function makeStyles(C: ThemeColors) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: C.bg },
+    content: { paddingBottom: TAB_PAD },
 
-  hero: {
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingBottom: 32,
-  },
-  cameraOverlay: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: C.accent,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 3,
-    borderColor: C.bg,
-  },
-  heroName: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: C.text,
-    marginTop: 16,
-    letterSpacing: -0.3,
-  },
-  heroEmail: {
-    fontSize: 14,
-    color: C.textSecondary,
-    marginTop: 4,
-  },
+    // ── Page title (iOS 26 "Settings" style) ──
+    pageTitle: {
+      fontSize: 34,
+      fontWeight: '700',
+      color: C.text,
+      letterSpacing: -0.5,
+      marginHorizontal: 20,
+      marginBottom: 20,
+    },
 
-  sectionLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: C.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 8,
-    marginLeft: 20,
-    marginTop: 8,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginRight: 20,
-    marginTop: 20,
-  },
-  sectionLabelInline: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: C.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 8,
-    marginLeft: 20,
-  },
+    // ── User card ──
+    userCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginHorizontal: 16,
+      marginBottom: 36,
+      backgroundColor: C.bgElevated,
+      borderRadius: 18,
+      paddingHorizontal: 18,
+      paddingVertical: 18,
+      gap: 16,
+    },
+    avatarBtn: { position: 'relative' },
+    cameraOverlay: {
+      position: 'absolute',
+      bottom: -2,
+      right: -2,
+      width: 24,
+      height: 24,
+      borderRadius: 12,
+      backgroundColor: C.accent,
+      justifyContent: 'center',
+      alignItems: 'center',
+      borderWidth: 2.5,
+      borderColor: C.bgElevated,
+    },
+    userInfo: { flex: 1 },
+    userName: { fontSize: 20, fontWeight: '600', color: C.text, letterSpacing: -0.4 },
+    userEmail: { fontSize: 14, color: C.textSecondary, marginTop: 3 },
 
-  card: {
-    marginHorizontal: 16,
-    marginBottom: 8,
-    backgroundColor: C.bgElevated,
-    borderRadius: 20,
-    overflow: 'hidden',
-  },
-  cardInner: {
-    padding: 18,
-  },
+    // ── Section header ──
+    sectionHeader: {
+      fontSize: 13,
+      fontWeight: '400',
+      color: C.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: 0.7,
+      marginLeft: 20,
+      marginBottom: 8,
+      marginTop: 8,
+    },
 
-  input: {
-    backgroundColor: C.inputFill,
-    borderWidth: 0,
-    borderRadius: 14,
-    padding: 14,
-    fontSize: 16,
-    marginBottom: 14,
-    color: C.text,
-  },
-  saveBtn: {
-    backgroundColor: C.accent,
-    borderRadius: 16,
-    padding: 15,
-    alignItems: 'center',
-  },
-  saveBtnDisabled: {
-    backgroundColor: C.inputFillStrong,
-  },
-  saveBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+    // ── Settings card ──
+    card: {
+      marginHorizontal: 16,
+      marginBottom: 36,
+      backgroundColor: C.bgElevated,
+      borderRadius: 18,
+      overflow: 'hidden',
+    },
 
-  currencyHint: {
-    fontSize: 13,
-    color: C.textSecondary,
-    marginBottom: 14,
-  },
-  currencyGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  currencyChip: {
-    width: '31%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: C.inputFill,
-    borderRadius: 12,
-    paddingHorizontal: 8,
-    paddingVertical: 12,
-    gap: 6,
-  },
-  currencyChipActive: {
-    backgroundColor: C.accent,
-  },
-  currencyChipSym: { fontSize: 15, fontWeight: '700', color: C.text },
-  currencyChipCode: { fontSize: 13, color: C.text, fontWeight: '600' },
-  currencyChipTextActive: { color: '#fff' },
+    // ── Row ──
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 16,
+      height: 58,
+      gap: 14,
+    },
+    iconBadge: {
+      width: 36,
+      height: 36,
+      borderRadius: 9,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    badgeCurrencyText: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: '#fff',
+    },
+    rowLabel: {
+      flex: 1,
+      fontSize: 17,
+      color: C.text,
+    },
+    rowRight: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+    },
+    rowValue: {
+      fontSize: 17,
+      color: C.textSecondary,
+    },
+    rowSep: {
+      height: StyleSheet.hairlineWidth,
+      backgroundColor: C.separator,
+      marginLeft: 66,
+    },
 
-  logoutRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 18,
-    paddingHorizontal: 18,
-  },
-  logoutText: { fontSize: 17, color: C.negative, fontWeight: '600' },
-  chevron: { fontSize: 22, color: C.chevron, fontWeight: '300' },
-});
+    // ── Bottom sheet shared ──
+    sheetTitle: {
+      fontSize: 17,
+      fontWeight: '700',
+      color: C.text,
+      textAlign: 'center',
+      marginBottom: 20,
+    },
+    sheetInput: {
+      backgroundColor: C.inputFill,
+      borderRadius: 14,
+      padding: 14,
+      fontSize: 16,
+      color: C.text,
+      marginBottom: 14,
+    },
+    sheetSaveBtn: {
+      backgroundColor: C.accent,
+      borderRadius: 14,
+      padding: 15,
+      alignItems: 'center',
+    },
+    sheetSaveBtnDisabled: { backgroundColor: C.inputFillStrong },
+    sheetSaveBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+
+    pickerSep: {
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: C.separator,
+    },
+
+    // ── Password sheet ──
+    pwFieldLabel: {
+      fontSize: 13,
+      fontWeight: '500',
+      color: C.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+      marginBottom: 6,
+      marginTop: 4,
+    },
+    pwInputRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: C.inputFill,
+      borderRadius: 14,
+      marginBottom: 14,
+    },
+    pwInput: {
+      flex: 1,
+      padding: 14,
+      fontSize: 16,
+      color: C.text,
+    },
+    pwEye: {
+      paddingHorizontal: 14,
+    },
+
+    // ── Theme sheet rows ──
+    themeRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 13,
+      gap: 14,
+    },
+    themeSwatch: {
+      width: 38,
+      height: 38,
+      borderRadius: 10,
+    },
+    themeEmoji: { fontSize: 18 },
+    themeLabel: {
+      flex: 1,
+      fontSize: 17,
+      color: C.text,
+    },
+
+    // ── Currency sheet rows ──
+    currencyRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 13,
+      gap: 14,
+    },
+    currencySymbolBadge: {
+      width: 40,
+      height: 40,
+      borderRadius: 10,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    currencySymbolText: {
+      fontSize: 15,
+      fontWeight: '700',
+    },
+    currencyInfo: { flex: 1 },
+    currencyCode: {
+      fontSize: 15,
+      fontWeight: '600',
+      color: C.text,
+    },
+    currencyName: {
+      fontSize: 13,
+      color: C.textSecondary,
+      marginTop: 1,
+    },
+  });
+}

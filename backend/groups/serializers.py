@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from .models import Group, GroupMember, Friendship
+from .models import Group, GroupMember, Friendship, PotTransaction
 
 User = get_user_model()
 
@@ -35,7 +35,7 @@ class GroupSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Group
-        fields = ('id', 'name', 'description', 'currency', 'image', 'created_by', 'members', 'member_count', 'created_at')
+        fields = ('id', 'name', 'description', 'currency', 'image', 'simplify_debts', 'group_type', 'created_by', 'members', 'member_count', 'created_at')
 
     def get_member_count(self, obj):
         return obj.members.count()
@@ -52,6 +52,18 @@ class GroupSerializer(serializers.ModelSerializer):
         group = Group.objects.create(created_by=user, **validated_data)
         GroupMember.objects.create(group=group, user=user, role='admin')
         return group
+
+
+class PotTransactionSerializer(serializers.ModelSerializer):
+    user = UserBriefSerializer(read_only=True)
+    user_id = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.all(), source='user', write_only=True
+    )
+
+    class Meta:
+        model = PotTransaction
+        fields = ('id', 'user', 'user_id', 'transaction_type', 'amount', 'currency', 'note', 'created_at')
+        read_only_fields = ('created_at',)
 
 
 class AddMemberSerializer(serializers.Serializer):

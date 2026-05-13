@@ -9,6 +9,7 @@ import {
   Keyboard,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
+import { useTheme } from '../../context/ThemeContext';
 
 interface Props {
   visible: boolean;
@@ -17,6 +18,9 @@ interface Props {
 }
 
 export default function BottomModal({ visible, onClose, children }: Props) {
+  const { themeKey } = useTheme();
+  const isDark = themeKey === 'midnight';
+
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView
@@ -29,14 +33,20 @@ export default function BottomModal({ visible, onClose, children }: Props) {
 
         <View style={styles.sheetWrap}>
           <BlurView
-            tint="light"
-            intensity={95}
+            tint={isDark ? 'dark' : 'light'}
+            intensity={isDark ? 90 : 95}
             style={styles.sheetBlur}
           >
-            <View style={styles.sheetInner}>
+            <View style={[
+              styles.sheetInner,
+              { backgroundColor: isDark ? 'rgba(18,12,32,0.82)' : 'rgba(255,255,255,0.88)' },
+            ]}>
               <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
                 <View>
-                  <View style={styles.grabber} />
+                  <View style={[
+                    styles.grabber,
+                    { backgroundColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.18)' },
+                  ]} />
                   {children}
                 </View>
               </TouchableWithoutFeedback>
@@ -51,7 +61,7 @@ export default function BottomModal({ visible, onClose, children }: Props) {
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.3)',
+    backgroundColor: 'rgba(0,0,0,0.4)',
   },
   sheetWrap: {
     borderTopLeftRadius: 28,
@@ -64,7 +74,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   sheetInner: {
-    backgroundColor: 'rgba(255,255,255,0.88)',
     paddingHorizontal: 24,
     paddingTop: 12,
     paddingBottom: Platform.OS === 'ios' ? 36 : 24,
@@ -72,7 +81,6 @@ const styles = StyleSheet.create({
   grabber: {
     width: 36,
     height: 4,
-    backgroundColor: 'rgba(0,0,0,0.18)',
     borderRadius: 2,
     alignSelf: 'center',
     marginBottom: 16,

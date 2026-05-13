@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useMemo, useCallback, useState } from 'react';
 import {
   View, Text, FlatList, StyleSheet, ActivityIndicator,
   RefreshControl, TouchableOpacity,
@@ -9,11 +9,14 @@ import { useFocusEffect } from '@react-navigation/native';
 import { getFriends } from '../../services/groups';
 import { getBalances } from '../../services/expenses';
 import { useCurrency } from '../../context/CurrencyContext';
+import { useTheme } from '../../context/ThemeContext';
 import { fmt } from '../../utils/currency';
-import { C, S, TAB_PAD } from '../../theme';
+import { S, TAB_PAD, ThemeColors } from '../../theme';
 
 export default function FriendsScreen() {
   const { preferredCurrency } = useCurrency();
+  const { C } = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const [friends, setFriends] = useState<any[]>([]);
   const [balances, setBalances] = useState<Record<number, number>>({});
   const [loading, setLoading] = useState(true);
@@ -136,83 +139,84 @@ export default function FriendsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.bg },
-  centerBox: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
-  listContent: { padding: 16, paddingBottom: TAB_PAD },
+function makeStyles(C: ThemeColors) {
+  return StyleSheet.create({
+    container: { flex: 1 },
+    centerBox: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
+    listContent: { padding: 16, paddingBottom: TAB_PAD },
 
-  header: {
-    paddingTop: 60,
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-    backgroundColor: C.bg,
-  },
-  title: {
-    fontSize: 34,
-    fontWeight: '800',
-    letterSpacing: -0.5,
-    color: C.text,
-  },
+    header: {
+      paddingTop: 60,
+      paddingHorizontal: 20,
+      paddingBottom: 16,
+    },
+    title: {
+      fontSize: 34,
+      fontWeight: '800',
+      letterSpacing: -0.5,
+      color: C.text,
+    },
 
-  errorText: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: C.text,
-    marginBottom: 20,
-  },
-  retryBtn: {
-    backgroundColor: C.accent,
-    borderRadius: 16,
-    paddingHorizontal: 28,
-    paddingVertical: 14,
-  },
-  retryBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+    errorText: {
+      fontSize: 17,
+      fontWeight: '600',
+      color: C.text,
+      marginBottom: 20,
+    },
+    retryBtn: {
+      backgroundColor: C.accent,
+      borderRadius: 16,
+      paddingHorizontal: 28,
+      paddingVertical: 14,
+    },
+    retryBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
 
-  emptyBox: { alignItems: 'center', marginTop: 60, padding: 24 },
-  emptyIconCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: C.accentSoft,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    marginBottom: 6,
-    color: C.text,
-  },
-  emptySub: {
-    fontSize: 14,
-    color: C.textSecondary,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
+    emptyBox: { alignItems: 'center', marginTop: 60, padding: 24 },
+    emptyIconCircle: {
+      width: 72,
+      height: 72,
+      borderRadius: 36,
+      backgroundColor: C.accentSoft,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: 16,
+    },
+    emptyTitle: {
+      fontSize: 20,
+      fontWeight: '700',
+      marginBottom: 6,
+      color: C.text,
+    },
+    emptySub: {
+      fontSize: 14,
+      color: C.textSecondary,
+      textAlign: 'center',
+      lineHeight: 20,
+    },
 
-  card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: C.bgElevated,
-    borderRadius: 20,
-    padding: 14,
-    marginBottom: 10,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.8)',
-  },
-  avatarMargin: { marginRight: 12 },
-  info: { flex: 1 },
-  name: { fontSize: 16, fontWeight: '700', color: C.text },
-  email: { fontSize: 13, color: C.textSecondary, marginTop: 2 },
-  balanceCol: { alignItems: 'flex-end' },
-  balance: { fontSize: 16, fontWeight: '700' },
-  balanceSub: { fontSize: 11, color: C.textSecondary, marginTop: 2 },
-  settledPill: {
-    backgroundColor: 'rgba(118,118,128,0.12)',
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  settledText: { fontSize: 13, color: C.textSecondary, fontWeight: '600' },
-});
+    card: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: C.bgElevated,
+      borderRadius: 20,
+      padding: 14,
+      marginBottom: 10,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: 'rgba(255,255,255,0.8)',
+    },
+    avatarMargin: { marginRight: 12 },
+    info: { flex: 1 },
+    name: { fontSize: 16, fontWeight: '700', color: C.text },
+    email: { fontSize: 13, color: C.textSecondary, marginTop: 2 },
+    balanceCol: { alignItems: 'flex-end' },
+    balance: { fontSize: 16, fontWeight: '700' },
+    balanceSub: { fontSize: 11, color: C.textSecondary, marginTop: 2 },
+    settledPill: {
+      backgroundColor: 'rgba(118,118,128,0.12)',
+      borderRadius: 10,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+    },
+    settledText: { fontSize: 13, color: C.textSecondary, fontWeight: '600' },
+  });
+}

@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useMemo, useCallback, useState } from 'react';
 import {
   View, Text, Image, FlatList, StyleSheet, TouchableOpacity,
   ActivityIndicator, Alert, TextInput, RefreshControl,
@@ -12,10 +12,13 @@ import { Group } from '../../types';
 import BottomModal from '../../components/common/BottomModal';
 import { CURRENCIES, fmt } from '../../utils/currency';
 import { useCurrency } from '../../context/CurrencyContext';
-import { C, S, TAB_PAD } from '../../theme';
+import { useTheme } from '../../context/ThemeContext';
+import { S, TAB_PAD, ThemeColors } from '../../theme';
 
 export default function GroupsScreen({ navigation }: any) {
   const { preferredCurrency } = useCurrency();
+  const { C } = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [balances, setBalances] = useState<Record<number, number>>({});
   const [loading, setLoading] = useState(true);
@@ -24,6 +27,7 @@ export default function GroupsScreen({ navigation }: any) {
   const [modalVisible, setModalVisible] = useState(false);
   const [name, setName] = useState('');
   const [currency, setCurrency] = useState('USD');
+  const [groupType, setGroupType] = useState<'regular' | 'gaming'>('regular');
   const [creating, setCreating] = useState(false);
 
   async function load() {
@@ -48,9 +52,10 @@ export default function GroupsScreen({ navigation }: any) {
     if (!name.trim()) return;
     setCreating(true);
     try {
-      await createGroup(name.trim(), currency);
+      await createGroup(name.trim(), currency, undefined, groupType);
       setName('');
       setCurrency('USD');
+      setGroupType('regular');
       setModalVisible(false);
       load();
     } catch {
@@ -154,7 +159,14 @@ export default function GroupsScreen({ navigation }: any) {
               )}
 
               <View style={styles.cardInfo}>
-                <Text style={styles.cardName}>{item.name}</Text>
+                <View style={styles.cardNameRow}>
+                  <Text style={styles.cardName}>{item.name}</Text>
+                  {item.group_type === 'gaming' && (
+                    <View style={styles.gamingPill}>
+                      <Text style={styles.gamingPillText}>🎮 Gaming</Text>
+                    </View>
+                  )}
+                </View>
                 <Text style={styles.cardSub}>{item.member_count} members</Text>
               </View>
 
@@ -199,6 +211,21 @@ export default function GroupsScreen({ navigation }: any) {
           onChangeText={setName}
           autoFocus
         />
+        <Text style={styles.currencyLabel}>Group Type</Text>
+        <View style={[styles.currencyRow, { marginBottom: 14 }]}>
+          {(['regular', 'gaming'] as const).map(t => (
+            <TouchableOpacity
+              key={t}
+              style={[styles.currencyChip, groupType === t && styles.currencyChipActive]}
+              onPress={() => setGroupType(t)}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.currencyChipText, groupType === t && styles.currencyChipTextActive]}>
+                {t === 'gaming' ? '🎮 Gaming' : 'Regular'}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
         <Text style={styles.currencyLabel}>Currency</Text>
         <View style={styles.currencyRow}>
           {CURRENCIES.map(c => (
@@ -241,175 +268,184 @@ export default function GroupsScreen({ navigation }: any) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.bg },
-  centerBox: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
-  listContent: { padding: 16, paddingBottom: TAB_PAD },
+function makeStyles(C: ThemeColors) {
+  return StyleSheet.create({
+    container: { flex: 1 },
+    centerBox: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
+    listContent: { padding: 16, paddingBottom: TAB_PAD },
 
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 60,
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-    backgroundColor: C.bg,
-  },
-  title: {
-    fontSize: 34,
-    fontWeight: '800',
-    letterSpacing: -0.5,
-    color: C.text,
-  },
-  addBtn: {
-    backgroundColor: C.accent,
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 9,
-    shadowColor: C.accent,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  addBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingTop: 60,
+      paddingHorizontal: 20,
+      paddingBottom: 16,
+    },
+    title: {
+      fontSize: 34,
+      fontWeight: '800',
+      letterSpacing: -0.5,
+      color: C.text,
+    },
+    addBtn: {
+      backgroundColor: C.accent,
+      borderRadius: 20,
+      paddingHorizontal: 16,
+      paddingVertical: 9,
+      shadowColor: C.accent,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 8,
+      elevation: 4,
+    },
+    addBtnText: { color: '#fff', fontWeight: '700', fontSize: 14 },
 
-  card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: C.bgElevated,
-    borderRadius: 20,
-    padding: 14,
-    marginBottom: 10,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.8)',
-  },
-  cardIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 14,
-    overflow: 'hidden',
-  },
-  cardIconText: { fontSize: 20, fontWeight: '800', color: '#fff' },
-  cardInfo: { flex: 1 },
-  cardName: { fontSize: 17, fontWeight: '700', color: C.text },
-  cardSub: { fontSize: 13, color: C.textSecondary, marginTop: 4 },
+    card: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: C.bgElevated,
+      borderRadius: 20,
+      padding: 14,
+      marginBottom: 10,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: 'rgba(255,255,255,0.8)',
+    },
+    cardIcon: {
+      width: 48,
+      height: 48,
+      borderRadius: 14,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: 14,
+      overflow: 'hidden',
+    },
+    cardIconText: { fontSize: 20, fontWeight: '800', color: '#fff' },
+    cardInfo: { flex: 1 },
+    cardNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
+    cardName: { fontSize: 17, fontWeight: '700', color: C.text },
+    cardSub: { fontSize: 13, color: C.textSecondary, marginTop: 4 },
+    gamingPill: {
+      backgroundColor: 'rgba(191,90,242,0.15)',
+      borderRadius: 8,
+      paddingHorizontal: 7,
+      paddingVertical: 2,
+    },
+    gamingPillText: { fontSize: 11, fontWeight: '700', color: '#BF5AF2' },
 
-  balanceBox: { alignItems: 'flex-end' },
-  balancePill: {
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  balancePillPos: { backgroundColor: 'rgba(48,209,88,0.12)' },
-  balancePillNeg: { backgroundColor: 'rgba(255,59,48,0.12)' },
-  balanceAmount: { fontSize: 15, fontWeight: '700' },
-  balanceLabel: {
-    fontSize: 11,
-    color: C.textSecondary,
-    marginTop: 4,
-  },
-  settledPill: {
-    backgroundColor: 'rgba(118,118,128,0.12)',
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  settledText: { fontSize: 13, color: C.textSecondary, fontWeight: '600' },
+    balanceBox: { alignItems: 'flex-end' },
+    balancePill: {
+      borderRadius: 10,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+    },
+    balancePillPos: { backgroundColor: 'rgba(48,209,88,0.12)' },
+    balancePillNeg: { backgroundColor: 'rgba(255,59,48,0.12)' },
+    balanceAmount: { fontSize: 15, fontWeight: '700' },
+    balanceLabel: {
+      fontSize: 11,
+      color: C.textSecondary,
+      marginTop: 4,
+    },
+    settledPill: {
+      backgroundColor: 'rgba(118,118,128,0.12)',
+      borderRadius: 10,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+    },
+    settledText: { fontSize: 13, color: C.textSecondary, fontWeight: '600' },
 
-  errorText: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: C.text,
-    marginBottom: 20,
-  },
-  retryBtn: {
-    backgroundColor: C.accent,
-    borderRadius: 16,
-    paddingHorizontal: 28,
-    paddingVertical: 14,
-  },
-  retryBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+    errorText: {
+      fontSize: 17,
+      fontWeight: '600',
+      color: C.text,
+      marginBottom: 20,
+    },
+    retryBtn: {
+      backgroundColor: C.accent,
+      borderRadius: 16,
+      paddingHorizontal: 28,
+      paddingVertical: 14,
+    },
+    retryBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
 
-  emptyBox: { alignItems: 'center', marginTop: 60, padding: 24 },
-  emptyIconCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: C.accentSoft,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    marginBottom: 6,
-    color: C.text,
-  },
-  emptySub: {
-    fontSize: 14,
-    color: C.textSecondary,
-    textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 20,
-  },
-  emptyBtn: {
-    backgroundColor: C.accent,
-    borderRadius: 16,
-    paddingHorizontal: 24,
-    paddingVertical: 14,
-  },
-  emptyBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+    emptyBox: { alignItems: 'center', marginTop: 60, padding: 24 },
+    emptyIconCircle: {
+      width: 72,
+      height: 72,
+      borderRadius: 36,
+      backgroundColor: C.accentSoft,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: 16,
+    },
+    emptyTitle: {
+      fontSize: 20,
+      fontWeight: '700',
+      marginBottom: 6,
+      color: C.text,
+    },
+    emptySub: {
+      fontSize: 14,
+      color: C.textSecondary,
+      textAlign: 'center',
+      lineHeight: 20,
+      marginBottom: 20,
+    },
+    emptyBtn: {
+      backgroundColor: C.accent,
+      borderRadius: 16,
+      paddingHorizontal: 24,
+      paddingVertical: 14,
+    },
+    emptyBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
 
-  modalTitle: {
-    fontSize: 22,
-    fontWeight: '800',
-    marginBottom: 16,
-    color: C.text,
-    letterSpacing: -0.3,
-  },
-  input: {
-    backgroundColor: C.inputFill,
-    borderWidth: 0,
-    borderRadius: 14,
-    padding: 14,
-    fontSize: 16,
-    marginBottom: 14,
-    color: C.text,
-  },
-  currencyLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: C.textSecondary,
-    marginBottom: 8,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  currencyRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 18 },
-  currencyChip: {
-    borderWidth: 0,
-    backgroundColor: C.inputFill,
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-  },
-  currencyChipActive: {
-    backgroundColor: C.accent,
-  },
-  currencyChipText: { fontSize: 13, color: C.text, fontWeight: '700' },
-  currencyChipTextActive: { color: '#fff' },
-  createBtn: {
-    backgroundColor: C.accent,
-    borderRadius: 16,
-    padding: 16,
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  createBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  cancelWrap: { paddingVertical: 8 },
-  cancel: { textAlign: 'center', color: C.textSecondary, fontSize: 15, fontWeight: '600' },
-});
+    modalTitle: {
+      fontSize: 22,
+      fontWeight: '800',
+      marginBottom: 16,
+      color: C.text,
+      letterSpacing: -0.3,
+    },
+    input: {
+      backgroundColor: C.inputFill,
+      borderWidth: 0,
+      borderRadius: 14,
+      padding: 14,
+      fontSize: 16,
+      marginBottom: 14,
+      color: C.text,
+    },
+    currencyLabel: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: C.textSecondary,
+      marginBottom: 8,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+    },
+    currencyRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 18 },
+    currencyChip: {
+      borderWidth: 0,
+      backgroundColor: C.inputFill,
+      borderRadius: 12,
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+    },
+    currencyChipActive: {
+      backgroundColor: C.accent,
+    },
+    currencyChipText: { fontSize: 13, color: C.text, fontWeight: '700' },
+    currencyChipTextActive: { color: '#fff' },
+    createBtn: {
+      backgroundColor: C.accent,
+      borderRadius: 16,
+      padding: 16,
+      alignItems: 'center',
+      marginBottom: 8,
+    },
+    createBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+    cancelWrap: { paddingVertical: 8 },
+    cancel: { textAlign: 'center', color: C.textSecondary, fontSize: 15, fontWeight: '600' },
+  });
+}

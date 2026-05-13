@@ -1,19 +1,25 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, Alert, ActivityIndicator, Switch,
+  ScrollView, Alert, ActivityIndicator, Switch, Image,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
-import { updateExpense } from '../../services/expenses';
+import { useTheme } from '../../context/ThemeContext';
+import { updateExpense, uploadExpenseImage } from '../../services/expenses';
+import BackButton from '../../components/common/BackButton';
 import { Group, Expense } from '../../types';
 import BottomModal from '../../components/common/BottomModal';
 import Avatar from '../../components/common/Avatar';
 import { CURRENCIES, symbolOf } from '../../utils/currency';
-import { C, S } from '../../theme';
+import { S, ThemeColors } from '../../theme';
 
 export default function EditExpenseScreen({ route, navigation }: any) {
   const { group, expense, onDone }: { group: Group; expense: Expense; onDone: () => void } = route.params;
   const { user } = useAuth();
+  const { C } = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
 
   const [description, setDescription] = useState(expense.description);
   const [notes, setNotes] = useState(expense.notes ?? '');
@@ -48,6 +54,8 @@ export default function EditExpenseScreen({ route, navigation }: any) {
     );
   });
 
+  const [imageUri, setImageUri] = useState<string | null>(expense.image ?? null);
+  const [imageChanged, setImageChanged] = useState(false);
   const [payerModalVisible, setPayerModalVisible] = useState(false);
   const [currencyModalVisible, setCurrencyModalVisible] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -63,6 +71,30 @@ export default function EditExpenseScreen({ route, navigation }: any) {
   const pctTotal = selectedMembers.reduce(
     (s, m) => s + parseFloat(percentages[m.user.id] || '0'), 0,
   );
+
+  async function handlePickImage() {
+    Alert.alert('Attach Photo', 'Choose a source', [
+      {
+        text: 'Camera',
+        onPress: async () => {
+          const { status } = await ImagePicker.requestCameraPermissionsAsync();
+          if (status !== 'granted') { Alert.alert('Permission needed', 'Allow camera access to take a photo.'); return; }
+          const result = await ImagePicker.launchCameraAsync({ allowsEditing: true, quality: 0.8 });
+          if (!result.canceled) { setImageUri(result.assets[0].uri); setImageChanged(true); }
+        },
+      },
+      {
+        text: 'Photo Library',
+        onPress: async () => {
+          const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+          if (status !== 'granted') { Alert.alert('Permission needed', 'Allow photo access to attach a photo.'); return; }
+          const result = await ImagePicker.launchImageLibraryAsync({ allowsEditing: true, quality: 0.8 });
+          if (!result.canceled) { setImageUri(result.assets[0].uri); setImageChanged(true); }
+        },
+      },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  }
 
   function toggleMember(id: number) {
     setSelectedIds(prev =>
@@ -108,6 +140,9 @@ export default function EditExpenseScreen({ route, navigation }: any) {
           ),
         }),
       });
+      if (imageChanged) {
+        await uploadExpenseImage(expense.id, imageUri).catch(() => {});
+      }
       navigation.goBack();
       onDone?.();
     } catch (e: any) {
@@ -187,9 +222,7 @@ export default function EditExpenseScreen({ route, navigation }: any) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={10}>
-          <Text style={styles.back}>Cancel</Text>
-        </TouchableOpacity>
+        <BackButton onPress={() => navigation.goBack()} />
         <Text style={styles.title}>Edit Expense</Text>
         <TouchableOpacity onPress={handleSave} disabled={loading} hitSlop={10}>
           {loading
@@ -204,6 +237,27 @@ export default function EditExpenseScreen({ route, navigation }: any) {
         contentContainerStyle={{ paddingBottom: 40, paddingTop: 8 }}
         keyboardShouldPersistTaps="handled"
       >
+        {/* Receipt items banner */}
+        {expense.receipt_data && (
+          <TouchableOpacity
+            style={[styles.receiptItemsBanner, { backgroundColor: C.accentSoft }]}
+            onPress={() => {
+              navigation.goBack();
+              // Navigate to ReceiptScan after modal closes
+              setTimeout(() => {
+                navigation.navigate('ReceiptScan', { group, editExpense: expense, onDone });
+              }, 50);
+            }}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="receipt-outline" size={18} color={C.accent} />
+            <Text style={[styles.receiptItemsBannerText, { color: C.accent }]}>
+              Edit receipt items & assignments
+            </Text>
+            <Ionicons name="chevron-forward" size={16} color={C.accent} />
+          </TouchableOpacity>
+        )}
+
         {/* Description + Amount */}
         <View style={[styles.section, S.shadowSm]}>
           <Text style={styles.label}>Description</Text>
@@ -245,6 +299,25 @@ export default function EditExpenseScreen({ route, navigation }: any) {
               keyboardType="decimal-pad"
             />
           </View>
+
+          <Text style={styles.label}>Photo</Text>
+          {imageUri ? (
+            <View style={styles.photoPreviewWrap}>
+              <Image source={{ uri: imageUri }} style={styles.photoPreview} />
+              <TouchableOpacity
+                style={styles.photoRemoveBtn}
+                onPress={() => { setImageUri(null); setImageChanged(true); }}
+                hitSlop={8}
+              >
+                <Ionicons name="close-circle" size={22} color="#fff" />
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity style={styles.photoPickerBtn} onPress={handlePickImage} activeOpacity={0.7}>
+              <Ionicons name="camera-outline" size={20} color={C.accent} />
+              <Text style={styles.photoPickerText}>Attach a photo</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Paid by */}
@@ -372,144 +445,181 @@ export default function EditExpenseScreen({ route, navigation }: any) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.bg },
-  scroll: { flex: 1 },
+function makeStyles(C: ThemeColors) {
+  return StyleSheet.create({
+    container: { flex: 1 },
+    scroll: { flex: 1 },
 
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 60,
-    paddingBottom: 12,
-    backgroundColor: C.bg,
-  },
-  back: { fontSize: 16, color: C.accent, fontWeight: '500' },
-  title: { fontSize: 17, fontWeight: '700', color: C.text, letterSpacing: -0.2 },
-  save: { fontSize: 16, color: C.accent, fontWeight: '700' },
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingHorizontal: 16,
+      paddingTop: 60,
+      paddingBottom: 12,
+    },
+    title: { fontSize: 17, fontWeight: '700', color: C.text, letterSpacing: -0.2 },
+    save: { fontSize: 16, color: C.accent, fontWeight: '700' },
 
-  section: {
-    backgroundColor: C.bgElevated,
-    marginHorizontal: 16,
-    marginTop: 12,
-    borderRadius: 20,
-    padding: 16,
-  },
-  label: {
-    fontSize: 13,
-    color: C.textSecondary,
-    fontWeight: '600',
-    marginBottom: 8,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  input: {
-    backgroundColor: C.inputFill,
-    borderWidth: 0,
-    borderRadius: 14,
-    padding: 14,
-    fontSize: 16,
-    marginBottom: 14,
-    color: C.text,
-  },
-  notesInput: {
-    minHeight: 80,
-    textAlignVertical: 'top',
-  },
+    section: {
+      backgroundColor: C.bgElevated,
+      marginHorizontal: 16,
+      marginTop: 12,
+      borderRadius: 20,
+      padding: 16,
+    },
+    label: {
+      fontSize: 13,
+      color: C.textSecondary,
+      fontWeight: '600',
+      marginBottom: 8,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+    },
+    input: {
+      backgroundColor: C.inputFill,
+      borderWidth: 0,
+      borderRadius: 14,
+      padding: 14,
+      fontSize: 16,
+      marginBottom: 14,
+      color: C.text,
+    },
+    notesInput: {
+      minHeight: 80,
+      textAlignVertical: 'top',
+    },
 
-  amountRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  currencyBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(48,209,88,0.12)',
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    gap: 6,
-  },
-  currencyBtnText: { fontSize: 15, fontWeight: '700', color: C.accent },
-  currencyChevron: { fontSize: 11, color: C.accent },
-  amountInput: {
-    flex: 1,
-    backgroundColor: C.inputFill,
-    borderWidth: 0,
-    borderRadius: 14,
-    padding: 14,
-    fontSize: 16,
-    color: C.text,
-  },
+    amountRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    currencyBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: C.accentSoft,
+      borderRadius: 14,
+      paddingHorizontal: 14,
+      paddingVertical: 14,
+      gap: 6,
+    },
+    currencyBtnText: { fontSize: 15, fontWeight: '700', color: C.accent },
+    currencyChevron: { fontSize: 11, color: C.accent },
+    amountInput: {
+      flex: 1,
+      backgroundColor: C.inputFill,
+      borderWidth: 0,
+      borderRadius: 14,
+      padding: 14,
+      fontSize: 16,
+      color: C.text,
+    },
 
-  payerRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 4 },
-  payerName: { flex: 1, fontSize: 16, fontWeight: '600', color: C.text },
-  chevron: { fontSize: 22, color: C.chevron, fontWeight: '300' },
+    payerRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 4 },
+    payerName: { flex: 1, fontSize: 16, fontWeight: '600', color: C.text },
+    chevron: { fontSize: 22, color: C.chevron, fontWeight: '300' },
 
-  splitTypeRow: { flexDirection: 'row', gap: 8 },
-  splitBtn: {
-    flex: 1,
-    backgroundColor: C.inputFill,
-    borderRadius: 14,
-    paddingVertical: 12,
-    paddingHorizontal: 6,
-    alignItems: 'center',
-  },
-  splitBtnActive: { backgroundColor: C.accent },
-  splitBtnText: { color: C.text, fontWeight: '700', fontSize: 14 },
-  splitBtnTextActive: { color: '#fff' },
-  splitBtnHint: { color: C.textSecondary, fontSize: 11, marginTop: 2 },
-  splitBtnHintActive: { color: 'rgba(255,255,255,0.85)' },
+    splitTypeRow: { flexDirection: 'row', gap: 8 },
+    splitBtn: {
+      flex: 1,
+      backgroundColor: C.inputFill,
+      borderRadius: 14,
+      paddingVertical: 12,
+      paddingHorizontal: 6,
+      alignItems: 'center',
+    },
+    splitBtnActive: { backgroundColor: C.accent },
+    splitBtnText: { color: C.text, fontWeight: '700', fontSize: 14 },
+    splitBtnTextActive: { color: '#fff' },
+    splitBtnHint: { color: C.textSecondary, fontSize: 11, marginTop: 2 },
+    splitBtnHintActive: { color: 'rgba(255,255,255,0.85)' },
 
-  memberRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10 },
-  avatarGap: { marginRight: 10 },
-  memberName: { flex: 1, fontSize: 15, color: C.text, fontWeight: '500' },
+    memberRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10 },
+    avatarGap: { marginRight: 10 },
+    memberName: { flex: 1, fontSize: 15, color: C.text, fontWeight: '500' },
 
-  splitInputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingLeft: 46,
-    paddingBottom: 10,
-  },
-  splitInputLabel: { fontSize: 13, color: C.textSecondary },
-  splitInputBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: C.inputFill,
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    minWidth: 100,
-  },
-  splitInputPrefix: { fontSize: 15, color: C.textSecondary, marginRight: 4 },
-  splitInputSuffix: { fontSize: 15, color: C.textSecondary, marginLeft: 4 },
-  splitInput: { fontSize: 15, minWidth: 60, textAlign: 'right', color: C.text },
+    splitInputRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingLeft: 46,
+      paddingBottom: 10,
+    },
+    splitInputLabel: { fontSize: 13, color: C.textSecondary },
+    splitInputBox: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: C.inputFill,
+      borderRadius: 10,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      minWidth: 100,
+    },
+    splitInputPrefix: { fontSize: 15, color: C.textSecondary, marginRight: 4 },
+    splitInputSuffix: { fontSize: 15, color: C.textSecondary, marginLeft: 4 },
+    splitInput: { fontSize: 15, minWidth: 60, textAlign: 'right', color: C.text },
 
-  preview: { marginTop: 12, borderRadius: 12, padding: 12, alignItems: 'center' },
-  previewOk: { backgroundColor: 'rgba(48,209,88,0.12)' },
-  previewError: { backgroundColor: 'rgba(255,59,48,0.12)' },
-  previewLabel: { fontSize: 13, fontWeight: '700' },
-  previewLabelOk: { color: C.positive },
-  previewLabelError: { color: C.negative },
+    preview: { marginTop: 12, borderRadius: 12, padding: 12, alignItems: 'center' },
+    previewOk: { backgroundColor: 'rgba(48,209,88,0.12)' },
+    previewError: { backgroundColor: 'rgba(255,59,48,0.12)' },
+    previewLabel: { fontSize: 13, fontWeight: '700' },
+    previewLabelOk: { color: C.positive },
+    previewLabelError: { color: C.negative },
 
-  modalTitle: {
-    fontSize: 22, fontWeight: '800', marginBottom: 16, color: C.text, letterSpacing: -0.3,
-  },
-  currencyOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: C.separator,
-  },
-  currencyOptionSym: { fontSize: 18, width: 36, fontWeight: '700', color: C.text },
-  currencyOptionCode: { flex: 1, fontSize: 16, color: C.text, fontWeight: '500' },
-  payerOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: C.separator,
-  },
-  payerOptionName: { flex: 1, fontSize: 16, color: C.text, fontWeight: '500' },
-  checkmark: { fontSize: 18, color: C.accent, fontWeight: '800' },
-});
+    modalTitle: {
+      fontSize: 22, fontWeight: '800', marginBottom: 16, color: C.text, letterSpacing: -0.3,
+    },
+    currencyOption: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 14,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: C.separator,
+    },
+    currencyOptionSym: { fontSize: 18, width: 36, fontWeight: '700', color: C.text },
+    currencyOptionCode: { flex: 1, fontSize: 16, color: C.text, fontWeight: '500' },
+    payerOption: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 12,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: C.separator,
+    },
+    payerOptionName: { flex: 1, fontSize: 16, color: C.text, fontWeight: '500' },
+    checkmark: { fontSize: 18, color: C.accent, fontWeight: '800' },
+
+    receiptItemsBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      marginHorizontal: 16,
+      marginTop: 12,
+      marginBottom: 4,
+      borderRadius: 16,
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+    },
+    receiptItemsBannerText: {
+      flex: 1,
+      fontSize: 15,
+      fontWeight: '600',
+    },
+
+    photoPickerBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      backgroundColor: C.accentSoft,
+      borderRadius: 14,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+    },
+    photoPickerText: { fontSize: 15, color: C.accent, fontWeight: '600' },
+    photoPreviewWrap: { position: 'relative' },
+    photoPreview: { width: '100%', height: 200, borderRadius: 14, resizeMode: 'cover' },
+    photoRemoveBtn: {
+      position: 'absolute',
+      top: 8,
+      right: 8,
+      backgroundColor: 'rgba(0,0,0,0.5)',
+      borderRadius: 11,
+    },
+  });
+}

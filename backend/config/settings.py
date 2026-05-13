@@ -98,6 +98,8 @@ TIME_ZONE = 'UTC'
 USE_I18N = True
 USE_TZ = True
 
+ANTHROPIC_API_KEY = config('ANTHROPIC_API_KEY', default='')
+
 STATIC_URL = 'static/'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'

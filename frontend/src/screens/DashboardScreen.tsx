@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import {
   View, Text, FlatList, StyleSheet, TouchableOpacity,
   ActivityIndicator, RefreshControl,
@@ -9,9 +9,10 @@ import Avatar from '../components/common/Avatar';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { useCurrency } from '../context/CurrencyContext';
+import { useTheme } from '../context/ThemeContext';
 import { getBalances } from '../services/expenses';
 import { fmt } from '../utils/currency';
-import { C, S, TAB_PAD } from '../theme';
+import { S, TAB_PAD, ThemeColors } from '../theme';
 
 function greetingFor(date = new Date()) {
   const h = date.getHours();
@@ -23,6 +24,8 @@ function greetingFor(date = new Date()) {
 export default function DashboardScreen({ navigation }: any) {
   const { user } = useAuth();
   const { preferredCurrency } = useCurrency();
+  const { C } = useTheme();
+  const styles = useMemo(() => makeStyles(C), [C]);
   const [balances, setBalances] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -168,143 +171,144 @@ export default function DashboardScreen({ navigation }: any) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.bg },
-  listContent: { paddingBottom: TAB_PAD },
-  centerBox: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
+function makeStyles(C: ThemeColors) {
+  return StyleSheet.create({
+    container: { flex: 1 },
+    listContent: { paddingBottom: TAB_PAD },
+    centerBox: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
 
-  header: {
-    paddingTop: 60,
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-    backgroundColor: C.bg,
-  },
-  greeting: {
-    fontSize: 34,
-    fontWeight: '800',
-    letterSpacing: -0.5,
-    color: C.text,
-  },
-  greetSub: {
-    fontSize: 15,
-    color: C.textSecondary,
-    marginTop: 4,
-  },
+    header: {
+      paddingTop: 60,
+      paddingHorizontal: 20,
+      paddingBottom: 16,
+    },
+    greeting: {
+      fontSize: 34,
+      fontWeight: '800',
+      letterSpacing: -0.5,
+      color: C.text,
+    },
+    greetSub: {
+      fontSize: 15,
+      color: C.textSecondary,
+      marginTop: 4,
+    },
 
-  heroWrap: {
-    marginHorizontal: 16,
-    marginTop: 4,
-    marginBottom: 24,
-    borderRadius: 24,
-    shadowColor: C.accent,
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.25,
-    shadowRadius: 24,
-    elevation: 8,
-  },
-  hero: {
-    borderRadius: 24,
-    padding: 28,
-  },
-  heroLabel: {
-    color: 'rgba(255,255,255,0.85)',
-    fontSize: 13,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 8,
-  },
-  heroAmount: {
-    color: '#fff',
-    fontSize: 44,
-    fontWeight: '800',
-    letterSpacing: -1,
-  },
-  heroSub: {
-    color: 'rgba(255,255,255,0.92)',
-    fontSize: 15,
-    marginTop: 6,
-    fontWeight: '500',
-  },
+    heroWrap: {
+      marginHorizontal: 16,
+      marginTop: 4,
+      marginBottom: 24,
+      borderRadius: 24,
+      shadowColor: C.accent,
+      shadowOffset: { width: 0, height: 12 },
+      shadowOpacity: 0.25,
+      shadowRadius: 24,
+      elevation: 8,
+    },
+    hero: {
+      borderRadius: 24,
+      padding: 28,
+    },
+    heroLabel: {
+      color: 'rgba(255,255,255,0.85)',
+      fontSize: 13,
+      fontWeight: '600',
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+      marginBottom: 8,
+    },
+    heroAmount: {
+      color: '#fff',
+      fontSize: 44,
+      fontWeight: '800',
+      letterSpacing: -1,
+    },
+    heroSub: {
+      color: 'rgba(255,255,255,0.92)',
+      fontSize: 15,
+      marginTop: 6,
+      fontWeight: '500',
+    },
 
-  sectionTitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: C.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 8,
-    marginLeft: 20,
-  },
+    sectionTitle: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: C.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+      marginBottom: 8,
+      marginLeft: 20,
+    },
 
-  emptyIconCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: C.accentSoft,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  emptyBox: {
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingTop: 24,
-    paddingBottom: 32,
-  },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    marginBottom: 6,
-    color: C.text,
-  },
-  emptySub: {
-    fontSize: 14,
-    color: C.textSecondary,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
+    emptyIconCircle: {
+      width: 72,
+      height: 72,
+      borderRadius: 36,
+      backgroundColor: C.accentSoft,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: 16,
+    },
+    emptyBox: {
+      alignItems: 'center',
+      paddingHorizontal: 24,
+      paddingTop: 24,
+      paddingBottom: 32,
+    },
+    emptyTitle: {
+      fontSize: 20,
+      fontWeight: '700',
+      marginBottom: 6,
+      color: C.text,
+    },
+    emptySub: {
+      fontSize: 14,
+      color: C.textSecondary,
+      textAlign: 'center',
+      lineHeight: 20,
+    },
 
-  errorText: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: C.text,
-    marginBottom: 20,
-  },
-  retryBtn: {
-    backgroundColor: C.accent,
-    borderRadius: 16,
-    paddingHorizontal: 28,
-    paddingVertical: 14,
-  },
-  retryBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+    errorText: {
+      fontSize: 17,
+      fontWeight: '600',
+      color: C.text,
+      marginBottom: 20,
+    },
+    retryBtn: {
+      backgroundColor: C.accent,
+      borderRadius: 16,
+      paddingHorizontal: 28,
+      paddingVertical: 14,
+    },
+    retryBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
 
-  balanceRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: C.bgElevated,
-    marginHorizontal: 16,
-    marginBottom: 10,
-    padding: 14,
-    borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.8)',
-  },
-  avatarMargin: { marginRight: 12 },
-  balanceInfo: { flex: 1 },
-  balanceName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: C.text,
-  },
-  balanceSub: {
-    fontSize: 13,
-    color: C.textSecondary,
-    marginTop: 2,
-  },
-  balanceAmount: {
-    fontSize: 17,
-    fontWeight: '700',
-    letterSpacing: -0.3,
-  },
-});
+    balanceRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: C.bgElevated,
+      marginHorizontal: 16,
+      marginBottom: 10,
+      padding: 14,
+      borderRadius: 16,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: 'rgba(255,255,255,0.8)',
+    },
+    avatarMargin: { marginRight: 12 },
+    balanceInfo: { flex: 1 },
+    balanceName: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: C.text,
+    },
+    balanceSub: {
+      fontSize: 13,
+      color: C.textSecondary,
+      marginTop: 2,
+    },
+    balanceAmount: {
+      fontSize: 17,
+      fontWeight: '700',
+      letterSpacing: -0.3,
+    },
+  });
+}
