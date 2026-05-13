@@ -5,8 +5,7 @@ import { getGroups, createGroup } from '../../services/groups';
 import { getGroupBalances } from '../../services/expenses';
 import { Group } from '../../types';
 import BottomModal from '../../components/common/BottomModal';
-
-const CURRENCIES = ['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'IRR'];
+import { CURRENCIES } from '../../utils/currency';
 
 export default function GroupsScreen({ navigation }: any) {
   const [groups, setGroups] = useState<Group[]>([]);

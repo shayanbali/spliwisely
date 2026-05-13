@@ -7,10 +7,8 @@ import { getExpenses, getSimplifiedBalances, deleteExpense } from '../../service
 import { Group, Expense } from '../../types';
 import BottomModal from '../../components/common/BottomModal';
 import Avatar from '../../components/common/Avatar';
-
-const CURRENCY_SYMBOLS: Record<string, string> = {
-  USD: '$', EUR: '€', GBP: '£', CAD: 'CA$', AUD: 'A$', IRR: '﷼',
-};
+import { useCurrency } from '../../context/CurrencyContext';
+import { fmt } from '../../utils/currency';
 
 export default function GroupDetailScreen({ route, navigation }: any) {
   const { user } = useAuth();
@@ -25,7 +23,7 @@ export default function GroupDetailScreen({ route, navigation }: any) {
   const [email, setEmail] = useState('');
   const [adding, setAdding] = useState(false);
 
-  const symbol = CURRENCY_SYMBOLS[group.currency] ?? group.currency;
+  const { converted } = useCurrency();
 
   async function load() {
     setError(false);
@@ -138,7 +136,7 @@ export default function GroupDetailScreen({ route, navigation }: any) {
                       {' → '}
                       <Text style={{ fontWeight: '700' }}>{t.to.name || t.to.email}</Text>
                     </Text>
-                    <Text style={styles.settlementAmount}>{symbol}{parseFloat(t.amount).toFixed(2)}</Text>
+                    <Text style={styles.settlementAmount}>{fmt(parseFloat(t.amount), t.currency ?? 'USD')}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -188,20 +186,24 @@ export default function GroupDetailScreen({ route, navigation }: any) {
           const myShare = mySplit ? parseFloat(mySplit.amount) : 0;
           const iPaid = item.paid_by.id === myId;
           const paidByName = iPaid ? 'You' : (item.paid_by.name || item.paid_by.email);
+          const expCurrency: string = item.currency ?? group.currency ?? 'USD';
+          const total = parseFloat(item.amount);
 
           let shareLabel = '';
           let shareColor = '#999';
           if (iPaid && myShare > 0) {
-            const lent = parseFloat(item.amount) - myShare;
-            shareLabel = lent > 0 ? `you lent ${symbol}${lent.toFixed(2)}` : 'you paid in full';
+            const lent = total - myShare;
+            shareLabel = lent > 0.005 ? `you lent ${fmt(lent, expCurrency)}` : 'you paid in full';
             shareColor = '#1aa672';
           } else if (iPaid) {
             shareLabel = 'you paid in full';
             shareColor = '#1aa672';
           } else if (myShare > 0) {
-            shareLabel = `you owe ${symbol}${myShare.toFixed(2)}`;
+            shareLabel = `you owe ${fmt(myShare, expCurrency)}`;
             shareColor = '#e53935';
           }
+
+          const convStr = converted(total, expCurrency);
 
           return (
             <TouchableOpacity
@@ -210,12 +212,12 @@ export default function GroupDetailScreen({ route, navigation }: any) {
               delayLongPress={400}
             >
               <View style={styles.expenseIcon}>
-                <Text style={styles.expenseIconText}>{symbol}</Text>
+                <Text style={styles.expenseIconText}>{expCurrency[0]}</Text>
               </View>
               <View style={styles.expenseInfo}>
                 <Text style={styles.expenseDesc}>{item.description}</Text>
                 <Text style={styles.expenseSub}>
-                  Paid by {paidByName} · total {symbol}{parseFloat(item.amount).toFixed(2)}
+                  Paid by {paidByName} · {fmt(total, expCurrency)}{convStr ? ` (${convStr})` : ''}
                 </Text>
                 {shareLabel ? (
                   <Text style={[styles.expenseShare, { color: shareColor }]}>{shareLabel}</Text>

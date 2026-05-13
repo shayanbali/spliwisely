@@ -3,10 +3,13 @@ import { View, Text, FlatList, StyleSheet, TouchableOpacity, ActivityIndicator, 
 import Avatar from '../components/common/Avatar';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
+import { useCurrency } from '../context/CurrencyContext';
 import { getBalances } from '../services/expenses';
+import { fmt } from '../utils/currency';
 
 export default function DashboardScreen({ navigation }: any) {
   const { user } = useAuth();
+  const { preferredCurrency } = useCurrency();
   const [balances, setBalances] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -51,9 +54,9 @@ export default function DashboardScreen({ navigation }: any) {
       </View>
 
       <View style={[styles.totalCard, { backgroundColor: totalBalance >= 0 ? '#1aa672' : '#e53935' }]}>
-        <Text style={styles.totalLabel}>Overall Balance</Text>
+        <Text style={styles.totalLabel}>Overall Balance · {preferredCurrency}</Text>
         <Text style={styles.totalAmount}>
-          {totalBalance >= 0 ? '+' : ''}{totalBalance.toFixed(2)}
+          {totalBalance >= 0 ? '+' : ''}{fmt(Math.abs(totalBalance), preferredCurrency)}
         </Text>
         <Text style={styles.totalSub}>
           {totalBalance > 0 ? 'You are owed money' : totalBalance < 0 ? 'You owe money' : 'All settled up!'}
@@ -90,7 +93,7 @@ export default function DashboardScreen({ navigation }: any) {
                   <Text style={styles.balanceSub}>{isPositive ? 'owes you' : 'you owe'}</Text>
                 </View>
                 <Text style={[styles.balanceAmount, { color: isPositive ? '#1aa672' : '#e53935' }]}>
-                  {isPositive ? '+' : ''}{amount.toFixed(2)}
+                  {isPositive ? '+' : '-'}{fmt(Math.abs(amount), item.currency ?? preferredCurrency)}
                 </Text>
               </View>
             );

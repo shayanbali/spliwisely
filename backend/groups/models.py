@@ -5,7 +5,8 @@ from django.conf import settings
 class Group(models.Model):
     CURRENCY_CHOICES = [
         ('USD', 'USD'), ('EUR', 'EUR'), ('GBP', 'GBP'),
-        ('CAD', 'CAD'), ('AUD', 'AUD'), ('IRR', 'IRR'),
+        ('CAD', 'CAD'), ('AUD', 'AUD'), ('JPY', 'JPY'),
+        ('CHF', 'CHF'), ('CNY', 'CNY'), ('INR', 'INR'),
     ]
 
     name = models.CharField(max_length=255)

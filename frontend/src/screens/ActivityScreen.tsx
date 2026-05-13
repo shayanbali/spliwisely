@@ -3,7 +3,9 @@ import { View, Text, FlatList, StyleSheet, ActivityIndicator, RefreshControl, To
 import { useFocusEffect } from '@react-navigation/native';
 import { getActivityFeed } from '../services/expenses';
 import { useAuth } from '../context/AuthContext';
+import { useCurrency } from '../context/CurrencyContext';
 import Avatar from '../components/common/Avatar';
+import { fmt } from '../utils/currency';
 
 function timeAgo(isoString: string) {
   const diff = Date.now() - new Date(isoString).getTime();
@@ -18,6 +20,7 @@ function timeAgo(isoString: string) {
 
 export default function ActivityScreen() {
   const { user } = useAuth();
+  const { converted, preferredCurrency } = useCurrency();
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -56,26 +59,30 @@ export default function ActivityScreen() {
   }
 
   function renderExpense(item: any) {
-    const myShare = item.my_share ? parseFloat(item.my_share) : 0;
+    const currency: string = item.currency ?? 'USD';
     const total = parseFloat(item.amount);
+    const totalFmt = fmt(total, currency);
+    const totalConverted = converted(total, currency);
+
+    const myShare = item.my_share ? parseFloat(item.my_share) : 0;
     const lent = item.i_paid ? total - myShare : 0;
 
     let shareText = '';
     let shareColor = '#999';
-    if (item.i_paid && lent > 0) {
-      shareText = `you lent $${lent.toFixed(2)}`;
+    if (item.i_paid && lent > 0.005) {
+      shareText = `you lent ${fmt(lent, currency)}`;
       shareColor = '#1aa672';
     } else if (item.i_paid) {
       shareText = 'you paid in full';
       shareColor = '#1aa672';
     } else if (myShare > 0) {
-      shareText = `your share $${myShare.toFixed(2)}`;
+      shareText = `your share ${fmt(myShare, currency)}`;
       shareColor = '#e53935';
     }
 
     const paidByName = item.i_paid ? 'You' : (item.paid_by.name || item.paid_by.email);
-
     const paidByUser = item.i_paid ? user : item.paid_by;
+
     return (
       <View style={styles.card}>
         <Avatar
@@ -87,11 +94,12 @@ export default function ActivityScreen() {
         />
         <View style={styles.info}>
           <Text style={styles.title}>{item.description}</Text>
-          <Text style={styles.sub}>
-            {paidByName} paid{' '}
-            <Text style={styles.amount}>${total.toFixed(2)}</Text>
-            {item.group ? ` · ${item.group}` : ''}
-          </Text>
+          <View style={styles.amountRow}>
+            <Text style={styles.sub}>{paidByName} paid </Text>
+            <Text style={styles.amountMain}>{totalFmt}</Text>
+            {totalConverted ? <Text style={styles.amountConverted}> {totalConverted}</Text> : null}
+            {item.group ? <Text style={styles.sub}> · {item.group}</Text> : null}
+          </View>
           <View style={styles.tagRow}>
             <Text style={styles.badge}>{item.split_type} split</Text>
             {shareText ? <Text style={[styles.shareTag, { color: shareColor }]}>{shareText}</Text> : null}
@@ -104,7 +112,12 @@ export default function ActivityScreen() {
 
   function renderSettlement(item: any) {
     const isPayer = item.payer.id === user?.id;
+    const currency: string = item.currency ?? 'USD';
+    const amount = parseFloat(item.amount);
+    const amountFmt = fmt(amount, currency);
+    const amountConverted = converted(amount, currency);
     const displayUser = isPayer ? user : item.payer;
+
     return (
       <View style={styles.card}>
         <View style={styles.settlementAvatarBox}>
@@ -120,14 +133,13 @@ export default function ActivityScreen() {
         </View>
         <View style={styles.info}>
           <Text style={styles.title}>Settlement</Text>
-          <Text style={styles.sub}>
-            {isPayer ? 'You paid' : `${item.payer.name || item.payer.email} paid`}
-            {' '}
-            <Text style={styles.amount}>${parseFloat(item.amount).toFixed(2)}</Text>
-            {' to '}
-            {isPayer ? (item.receiver.name || item.receiver.email) : 'you'}
-            {item.group ? ` · ${item.group}` : ''}
-          </Text>
+          <View style={styles.amountRow}>
+            <Text style={styles.sub}>{isPayer ? 'You paid' : `${item.payer.name || item.payer.email} paid`} </Text>
+            <Text style={styles.amountMain}>{amountFmt}</Text>
+            {amountConverted ? <Text style={styles.amountConverted}> {amountConverted}</Text> : null}
+            <Text style={styles.sub}> to {isPayer ? (item.receiver.name || item.receiver.email) : 'you'}</Text>
+          </View>
+          {item.group ? <Text style={styles.groupTag}>· {item.group}</Text> : null}
           {item.note ? <Text style={styles.note}>"{item.note}"</Text> : null}
         </View>
         <Text style={styles.time}>{timeAgo(item.created_at)}</Text>
@@ -139,6 +151,7 @@ export default function ActivityScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Activity</Text>
+        <Text style={styles.headerSub}>showing in {preferredCurrency}</Text>
       </View>
       <FlatList
         data={items}
@@ -162,8 +175,9 @@ export default function ActivityScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f5f5f5' },
-  header: { padding: 20, paddingTop: 60, backgroundColor: '#fff' },
+  header: { padding: 20, paddingTop: 60, backgroundColor: '#fff', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
   headerTitle: { fontSize: 24, fontWeight: '800' },
+  headerSub: { fontSize: 12, color: '#999', marginBottom: 2 },
   card: { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: '#fff', borderRadius: 12, padding: 14, marginBottom: 10 },
   avatarMargin: { marginRight: 12 },
   settlementAvatarBox: { position: 'relative', marginRight: 12 },
@@ -176,8 +190,11 @@ const styles = StyleSheet.create({
   },
   info: { flex: 1 },
   title: { fontSize: 15, fontWeight: '600', marginBottom: 2 },
-  sub: { fontSize: 13, color: '#555', lineHeight: 18 },
-  amount: { fontWeight: '700', color: '#333' },
+  amountRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' },
+  sub: { fontSize: 13, color: '#555' },
+  amountMain: { fontSize: 13, fontWeight: '700', color: '#333' },
+  amountConverted: { fontSize: 12, color: '#999' },
+  groupTag: { fontSize: 12, color: '#999', marginTop: 1 },
   tagRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
   badge: { fontSize: 11, color: '#1aa672', fontWeight: '600', textTransform: 'capitalize' },
   shareTag: { fontSize: 11, fontWeight: '700' },

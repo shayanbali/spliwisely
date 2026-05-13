@@ -7,6 +7,7 @@ export const getExpenses = (groupId?: number) =>
 export const createExpense = (data: {
   description: string;
   amount: number;
+  currency: string;
   paid_by_id: number;
   group?: number;
   split_type: 'equal' | 'exact' | 'percentage';
@@ -27,9 +28,13 @@ export const createSettlement = (data: {
   payer_id: number;
   receiver_id: number;
   amount: number;
+  currency: string;
   group?: number;
   note?: string;
 }) => api.post<Settlement>('/expenses/settlements/', data).then(r => r.data);
+
+export const getRates = () =>
+  api.get<{ base: string; rates: Record<string, number> }>('/expenses/rates/').then(r => r.data);
 
 export const getActivityFeed = (groupId?: number) =>
   api.get('/expenses/activity/', { params: groupId ? { group: groupId } : {} }).then(r => r.data);

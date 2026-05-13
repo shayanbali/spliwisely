@@ -3,6 +3,7 @@ export interface User {
   email: string;
   name: string;
   avatar?: string;
+  preferred_currency?: string;
 }
 
 export interface Group {
@@ -26,6 +27,7 @@ export interface Expense {
   group: number;
   description: string;
   amount: string;
+  currency: string;
   paid_by: User;
   split_type: 'equal' | 'exact' | 'percentage';
   splits: ExpenseSplit[];
@@ -48,6 +50,7 @@ export interface Settlement {
   payer: User;
   receiver: User;
   amount: string;
+  currency: string;
   group?: number;
   created_at: string;
 }

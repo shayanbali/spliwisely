@@ -4,6 +4,8 @@ import { useAuth } from '../../context/AuthContext';
 import { createExpense } from '../../services/expenses';
 import { Group } from '../../types';
 import BottomModal from '../../components/common/BottomModal';
+import Avatar from '../../components/common/Avatar';
+import { CURRENCIES, symbolOf } from '../../utils/currency';
 
 export default function AddExpenseScreen({ route, navigation }: any) {
   const { group, onDone }: { group: Group; onDone: () => void } = route.params;
@@ -11,17 +13,20 @@ export default function AddExpenseScreen({ route, navigation }: any) {
 
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
+  const [currency, setCurrency] = useState(group.currency ?? 'USD');
   const [splitType, setSplitType] = useState<'equal' | 'exact' | 'percentage'>('equal');
   const [selectedIds, setSelectedIds] = useState<number[]>(group.members.map(m => m.user.id));
   const [paidById, setPaidById] = useState<number>(user!.id);
   const [exactAmounts, setExactAmounts] = useState<Record<number, string>>({});
   const [percentages, setPercentages] = useState<Record<number, string>>({});
   const [payerModalVisible, setPayerModalVisible] = useState(false);
+  const [currencyModalVisible, setCurrencyModalVisible] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const paidByUser = group.members.find(m => m.user.id === paidById)?.user;
   const total = parseFloat(amount || '0');
   const selectedMembers = group.members.filter(m => selectedIds.includes(m.user.id));
+  const sym = symbolOf(currency);
 
   const exactTotal = selectedMembers.reduce((s, m) => s + parseFloat(exactAmounts[m.user.id] || '0'), 0);
   const pctTotal = selectedMembers.reduce((s, m) => s + parseFloat(percentages[m.user.id] || '0'), 0);
@@ -40,7 +45,7 @@ export default function AddExpenseScreen({ route, navigation }: any) {
       return;
     }
     if (splitType === 'exact' && Math.abs(exactTotal - total) > 0.01) {
-      Alert.alert('Error', `Exact amounts must add up to $${total.toFixed(2)}. Currently: $${exactTotal.toFixed(2)}`);
+      Alert.alert('Error', `Exact amounts must add up to ${sym}${total.toFixed(2)}. Currently: ${sym}${exactTotal.toFixed(2)}`);
       return;
     }
     if (splitType === 'percentage' && Math.abs(pctTotal - 100) > 0.01) {
@@ -52,6 +57,7 @@ export default function AddExpenseScreen({ route, navigation }: any) {
       await createExpense({
         description: description.trim(),
         amount: total,
+        currency,
         paid_by_id: paidById,
         group: group.id,
         split_type: splitType,
@@ -84,9 +90,7 @@ export default function AddExpenseScreen({ route, navigation }: any) {
     return (
       <View key={m.id}>
         <View style={styles.memberRow}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{m.user.name?.[0] || m.user.email[0]}</Text>
-          </View>
+          <Avatar name={m.user.name} email={m.user.email} avatar={m.user.avatar} size={36} style={styles.avatarGap} />
           <Text style={styles.memberName}>{displayName}</Text>
           <Switch
             value={isSelected}
@@ -99,7 +103,7 @@ export default function AddExpenseScreen({ route, navigation }: any) {
           <View style={styles.splitInputRow}>
             <Text style={styles.splitInputLabel}>{displayName} pays</Text>
             <View style={styles.splitInputBox}>
-              <Text style={styles.splitInputPrefix}>$</Text>
+              <Text style={styles.splitInputPrefix}>{sym}</Text>
               <TextInput
                 style={styles.splitInput}
                 placeholder="0.00"
@@ -145,16 +149,27 @@ export default function AddExpenseScreen({ route, navigation }: any) {
       <View style={styles.section}>
         <Text style={styles.label}>Description</Text>
         <TextInput style={styles.input} placeholder="e.g. Dinner, Uber, Groceries" value={description} onChangeText={setDescription} />
-        <Text style={styles.label}>Amount ($)</Text>
-        <TextInput style={styles.input} placeholder="0.00" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" />
+
+        <Text style={styles.label}>Amount</Text>
+        <View style={styles.amountRow}>
+          <TouchableOpacity style={styles.currencyBtn} onPress={() => setCurrencyModalVisible(true)}>
+            <Text style={styles.currencyBtnText}>{currency}</Text>
+            <Text style={styles.currencyChevron}>▾</Text>
+          </TouchableOpacity>
+          <TextInput
+            style={styles.amountInput}
+            placeholder="0.00"
+            value={amount}
+            onChangeText={setAmount}
+            keyboardType="decimal-pad"
+          />
+        </View>
       </View>
 
       <View style={styles.section}>
         <Text style={styles.label}>Paid By</Text>
         <TouchableOpacity style={styles.payerRow} onPress={() => setPayerModalVisible(true)}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{paidByUser?.name?.[0] || paidByUser?.email[0]}</Text>
-          </View>
+          <Avatar name={paidByUser?.name} email={paidByUser?.email} avatar={paidByUser?.avatar} size={36} style={styles.avatarGap} />
           <Text style={styles.payerName}>
             {paidById === user!.id ? 'You' : (paidByUser?.name || paidByUser?.email)}
           </Text>
@@ -167,7 +182,7 @@ export default function AddExpenseScreen({ route, navigation }: any) {
         <View style={styles.splitTypeRow}>
           {([
             { key: 'equal', label: 'Equal', hint: 'Split evenly' },
-            { key: 'exact', label: 'Exact', hint: 'Set $ per person' },
+            { key: 'exact', label: 'Exact', hint: `Set ${sym} per person` },
             { key: 'percentage', label: 'Percentage', hint: 'Set % per person' },
           ] as const).map(({ key, label, hint }) => (
             <TouchableOpacity
@@ -188,13 +203,13 @@ export default function AddExpenseScreen({ route, navigation }: any) {
 
         {splitType === 'equal' && total > 0 && selectedMembers.length > 0 && (
           <View style={styles.preview}>
-            <Text style={styles.previewLabel}>Each person pays ${(total / selectedMembers.length).toFixed(2)}</Text>
+            <Text style={styles.previewLabel}>Each person pays {sym}{(total / selectedMembers.length).toFixed(2)}</Text>
           </View>
         )}
         {splitType === 'exact' && total > 0 && (
           <View style={[styles.preview, Math.abs(exactTotal - total) > 0.01 ? styles.previewError : styles.previewOk]}>
             <Text style={[styles.previewLabel, Math.abs(exactTotal - total) > 0.01 ? styles.previewLabelError : styles.previewLabelOk]}>
-              ${exactTotal.toFixed(2)} of ${total.toFixed(2)} assigned
+              {sym}{exactTotal.toFixed(2)} of {sym}{total.toFixed(2)} assigned
             </Text>
           </View>
         )}
@@ -207,6 +222,23 @@ export default function AddExpenseScreen({ route, navigation }: any) {
         )}
       </View>
 
+      {/* Currency picker modal */}
+      <BottomModal visible={currencyModalVisible} onClose={() => setCurrencyModalVisible(false)}>
+        <Text style={styles.modalTitle}>Select Currency</Text>
+        {CURRENCIES.map(c => (
+          <TouchableOpacity
+            key={c}
+            style={styles.currencyOption}
+            onPress={() => { setCurrency(c); setCurrencyModalVisible(false); }}
+          >
+            <Text style={styles.currencyOptionSym}>{symbolOf(c)}</Text>
+            <Text style={styles.currencyOptionCode}>{c}</Text>
+            {currency === c && <Text style={styles.checkmark}>✓</Text>}
+          </TouchableOpacity>
+        ))}
+      </BottomModal>
+
+      {/* Payer picker modal */}
       <BottomModal visible={payerModalVisible} onClose={() => setPayerModalVisible(false)}>
         <Text style={styles.modalTitle}>Who paid?</Text>
         {group.members.map(m => (
@@ -215,9 +247,7 @@ export default function AddExpenseScreen({ route, navigation }: any) {
             style={styles.payerOption}
             onPress={() => { setPaidById(m.user.id); setPayerModalVisible(false); }}
           >
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{m.user.name?.[0] || m.user.email[0]}</Text>
-            </View>
+            <Avatar name={m.user.name} email={m.user.email} avatar={m.user.avatar} size={36} style={styles.avatarGap} />
             <Text style={styles.payerOptionName}>
               {m.user.id === user!.id ? 'You' : (m.user.name || m.user.email)}
             </Text>
@@ -238,8 +268,13 @@ const styles = StyleSheet.create({
   section: { backgroundColor: '#fff', marginTop: 12, padding: 16 },
   label: { fontSize: 13, color: '#999', fontWeight: '600', marginBottom: 8, textTransform: 'uppercase' },
   input: { borderWidth: 1, borderColor: '#ddd', borderRadius: 10, padding: 14, fontSize: 16, marginBottom: 14 },
+  amountRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  currencyBtn: { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderColor: '#1aa672', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 13, gap: 4 },
+  currencyBtnText: { fontSize: 15, fontWeight: '700', color: '#1aa672' },
+  currencyChevron: { fontSize: 11, color: '#1aa672' },
+  amountInput: { flex: 1, borderWidth: 1, borderColor: '#ddd', borderRadius: 10, padding: 14, fontSize: 16 },
   payerRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 4 },
-  payerName: { flex: 1, fontSize: 16, fontWeight: '500', marginLeft: 4 },
+  payerName: { flex: 1, fontSize: 16, fontWeight: '500' },
   chevron: { fontSize: 22, color: '#ccc' },
   splitTypeRow: { flexDirection: 'row', gap: 8 },
   splitBtn: { flex: 1, borderWidth: 1.5, borderColor: '#ddd', borderRadius: 10, padding: 10, alignItems: 'center' },
@@ -249,8 +284,7 @@ const styles = StyleSheet.create({
   splitBtnHint: { color: '#bbb', fontSize: 10, marginTop: 2 },
   splitBtnHintActive: { color: '#1aa672' },
   memberRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10 },
-  avatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#e8f5e9', justifyContent: 'center', alignItems: 'center', marginRight: 10 },
-  avatarText: { fontWeight: '700', color: '#1aa672' },
+  avatarGap: { marginRight: 10 },
   memberName: { flex: 1, fontSize: 15 },
   splitInputRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 46, paddingBottom: 10 },
   splitInputLabel: { fontSize: 13, color: '#999' },
@@ -265,7 +299,10 @@ const styles = StyleSheet.create({
   previewLabelOk: { color: '#1aa672' },
   previewLabelError: { color: '#e53935' },
   modalTitle: { fontSize: 20, fontWeight: '700', marginBottom: 16 },
+  currencyOption: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#f5f5f5' },
+  currencyOptionSym: { fontSize: 18, width: 36, fontWeight: '600', color: '#333' },
+  currencyOptionCode: { flex: 1, fontSize: 16 },
   payerOption: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f5f5f5' },
-  payerOptionName: { flex: 1, fontSize: 16, marginLeft: 4 },
+  payerOptionName: { flex: 1, fontSize: 16 },
   checkmark: { fontSize: 18, color: '#1aa672', fontWeight: '700' },
 });

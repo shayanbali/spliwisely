@@ -23,7 +23,7 @@ class RegisterSerializer(serializers.ModelSerializer):
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ('id', 'email', 'name', 'avatar')
+        fields = ('id', 'email', 'name', 'avatar', 'preferred_currency')
         read_only_fields = ('id', 'email')
 
     def to_representation(self, instance):

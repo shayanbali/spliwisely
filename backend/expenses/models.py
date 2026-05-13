@@ -2,6 +2,12 @@ from django.db import models
 from django.conf import settings
 from groups.models import Group
 
+CURRENCY_CHOICES = [
+    ('USD', 'USD'), ('EUR', 'EUR'), ('GBP', 'GBP'),
+    ('CAD', 'CAD'), ('AUD', 'AUD'), ('JPY', 'JPY'),
+    ('CHF', 'CHF'), ('CNY', 'CNY'), ('INR', 'INR'),
+]
+
 
 class Expense(models.Model):
     SPLIT_CHOICES = [
@@ -19,6 +25,7 @@ class Expense(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='paid_expenses'
     )
     split_type = models.CharField(max_length=10, choices=SPLIT_CHOICES, default='equal')
+    currency = models.CharField(max_length=3, choices=CURRENCY_CHOICES, default='USD')
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
         null=True, related_name='created_expenses'
@@ -56,6 +63,7 @@ class Settlement(models.Model):
         Group, on_delete=models.SET_NULL, null=True, blank=True, related_name='settlements'
     )
     note = models.CharField(max_length=255, blank=True)
+    currency = models.CharField(max_length=3, choices=CURRENCY_CHOICES, default='USD')
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

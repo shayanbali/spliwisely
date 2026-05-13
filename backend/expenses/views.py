@@ -9,6 +9,7 @@ from groups.models import Group
 from .models import Expense, ExpenseSplit, Settlement
 from .serializers import ExpenseSerializer, SettlementSerializer
 from .balance_engine import compute_net_balances, simplify_debts
+from .exchange_rates import get_rates, convert
 
 User = get_user_model()
 
@@ -45,15 +46,27 @@ class SettlementListCreateView(generics.ListCreateAPIView):
         serializer.save()
 
 
+class ExchangeRatesView(APIView):
+    """Returns live exchange rates with USD as base. Cached for 1 hour."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        rates = get_rates()
+        return Response({'base': 'USD', 'rates': rates})
+
+
 class BalancesView(APIView):
-    """Pairwise balances relative to the current user.
-    Positive = other person owes you. Negative = you owe them.
+    """
+    Pairwise balances relative to the current user, converted to the user's
+    preferred currency. Positive = other person owes you. Negative = you owe them.
     """
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
         user = request.user
         group_id = request.query_params.get('group')
+        preferred = user.preferred_currency
+        rates = get_rates()
         balances = {}
 
         expenses_qs = Expense.objects.filter(
@@ -65,36 +78,37 @@ class BalancesView(APIView):
 
         for expense in expenses_qs:
             paid_by = expense.paid_by
+            exp_currency = expense.currency
             for split in expense.splits.all():
                 if split.user == paid_by:
                     continue
+                # convert split amount to preferred currency
+                converted = Decimal(str(convert(float(split.amount), exp_currency, preferred, rates)))
                 if paid_by == user:
-                    # current user paid — split.user owes us
-                    balances[split.user_id] = balances.get(split.user_id, Decimal('0')) + split.amount
+                    balances[split.user_id] = balances.get(split.user_id, Decimal('0')) + converted
                 elif split.user == user:
-                    # current user owes the payer
-                    balances[paid_by.id] = balances.get(paid_by.id, Decimal('0')) - split.amount
+                    balances[paid_by.id] = balances.get(paid_by.id, Decimal('0')) - converted
 
         settlements_qs = Settlement.objects.filter(Q(payer=user) | Q(receiver=user))
         if group_id:
             settlements_qs = settlements_qs.filter(group_id=group_id)
 
         for s in settlements_qs:
+            converted = Decimal(str(convert(float(s.amount), s.currency, preferred, rates)))
             if s.payer == user:
-                # we paid someone — reduces what we owe them
-                balances[s.receiver_id] = balances.get(s.receiver_id, Decimal('0')) + s.amount
+                balances[s.receiver_id] = balances.get(s.receiver_id, Decimal('0')) + converted
             else:
-                # someone paid us — reduces what they owe us
-                balances[s.payer_id] = balances.get(s.payer_id, Decimal('0')) - s.amount
+                balances[s.payer_id] = balances.get(s.payer_id, Decimal('0')) - converted
 
         result = []
         for user_id, amount in balances.items():
-            if amount == 0:
+            if abs(amount) < Decimal('0.01'):
                 continue
             other_user = User.objects.get(id=user_id)
             result.append({
                 'user': UserBriefSerializer(other_user, context={'request': request}).data,
-                'amount': str(amount),
+                'amount': str(round(amount, 2)),
+                'currency': preferred,
             })
 
         return Response(result)
@@ -102,23 +116,45 @@ class BalancesView(APIView):
 
 class SimplifiedBalancesView(APIView):
     """
-    Minimum transactions needed to settle all debts in a group.
-    Uses the greedy debt simplification algorithm.
+    Minimum transactions to settle all debts in a group, in the requesting
+    user's preferred currency.
     """
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
         group_id = request.query_params.get('group')
+        preferred = request.user.preferred_currency
+        rates = get_rates()
 
-        expenses_qs = Expense.objects.all().prefetch_related('splits')
+        expenses_qs = Expense.objects.all().select_related('paid_by').prefetch_related('splits')
         settlements_qs = Settlement.objects.all()
 
         if group_id:
             expenses_qs = expenses_qs.filter(group_id=group_id)
             settlements_qs = settlements_qs.filter(group_id=group_id)
 
-        net_balances = compute_net_balances(expenses_qs, settlements_qs)
-        transactions = simplify_debts(net_balances)
+        # Build currency-converted net balances
+        from decimal import Decimal
+        from collections import defaultdict
+        net = defaultdict(Decimal)
+
+        for expense in expenses_qs:
+            paid_by_id = expense.paid_by_id
+            exp_currency = expense.currency
+            for split in expense.splits.all():
+                if split.user_id == paid_by_id:
+                    continue
+                converted = Decimal(str(convert(float(split.amount), exp_currency, preferred, rates)))
+                net[paid_by_id] += converted
+                net[split.user_id] -= converted
+
+        for s in settlements_qs:
+            converted = Decimal(str(convert(float(s.amount), s.currency, preferred, rates)))
+            net[s.receiver_id] -= converted
+            net[s.payer_id] += converted
+
+        net_filtered = {uid: amt for uid, amt in net.items() if abs(amt) > Decimal('0.01')}
+        transactions = simplify_debts(net_filtered)
 
         result = []
         for debtor_id, creditor_id, amount in transactions:
@@ -127,7 +163,8 @@ class SimplifiedBalancesView(APIView):
             result.append({
                 'from': UserBriefSerializer(debtor, context={'request': request}).data,
                 'to': UserBriefSerializer(creditor, context={'request': request}).data,
-                'amount': str(amount),
+                'amount': str(round(amount, 2)),
+                'currency': preferred,
             })
 
         return Response(result)
@@ -140,6 +177,8 @@ class ActivityFeedView(APIView):
     def get(self, request):
         user = request.user
         group_id = request.query_params.get('group')
+        preferred = user.preferred_currency
+        rates = get_rates()
 
         expenses_qs = Expense.objects.filter(
             splits__user=user
@@ -159,24 +198,37 @@ class ActivityFeedView(APIView):
             my_split = next((s for s in e.splits.all() if s.user == user), None)
             my_share = str(my_split.amount) if my_split else None
             i_paid = e.paid_by == user
+            converted_amount = convert(float(e.amount), e.currency, preferred, rates)
+            my_share_converted = (
+                str(round(convert(float(my_split.amount), e.currency, preferred, rates), 2))
+                if my_split else None
+            )
             items.append({
                 'type': 'expense',
                 'id': e.id,
                 'description': e.description,
                 'amount': str(e.amount),
+                'currency': e.currency,
+                'amount_in_preferred': str(round(converted_amount, 2)),
+                'preferred_currency': preferred,
                 'paid_by': UserBriefSerializer(e.paid_by, context={'request': request}).data,
                 'group': e.group.name if e.group else None,
                 'split_type': e.split_type,
                 'my_share': my_share,
+                'my_share_converted': my_share_converted,
                 'i_paid': i_paid,
                 'created_at': e.created_at.isoformat(),
             })
 
         for s in settlements_qs:
+            converted_amount = convert(float(s.amount), s.currency, preferred, rates)
             items.append({
                 'type': 'settlement',
                 'id': s.id,
                 'amount': str(s.amount),
+                'currency': s.currency,
+                'amount_in_preferred': str(round(converted_amount, 2)),
+                'preferred_currency': preferred,
                 'payer': UserBriefSerializer(s.payer, context={'request': request}).data,
                 'receiver': UserBriefSerializer(s.receiver, context={'request': request}).data,
                 'group': s.group.name if s.group else None,
@@ -189,11 +241,13 @@ class ActivityFeedView(APIView):
 
 
 class GroupBalancesView(APIView):
-    """Returns each group's net balance for the current user."""
+    """Returns each group's net balance for the current user in their preferred currency."""
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
         user = request.user
+        preferred = user.preferred_currency
+        rates = get_rates()
         groups = Group.objects.filter(members__user=user)
         result = []
 
@@ -208,23 +262,27 @@ class GroupBalancesView(APIView):
 
             net_balance = Decimal('0')
             for expense in expenses_qs:
+                exp_currency = expense.currency
                 for split in expense.splits.all():
                     if split.user == expense.paid_by:
                         continue
+                    converted = Decimal(str(convert(float(split.amount), exp_currency, preferred, rates)))
                     if expense.paid_by == user:
-                        net_balance += split.amount
+                        net_balance += converted
                     elif split.user == user:
-                        net_balance -= split.amount
+                        net_balance -= converted
 
             for s in settlements_qs:
+                converted = Decimal(str(convert(float(s.amount), s.currency, preferred, rates)))
                 if s.payer == user:
-                    net_balance += s.amount
+                    net_balance += converted
                 else:
-                    net_balance -= s.amount
+                    net_balance -= converted
 
             result.append({
                 'group_id': group.id,
-                'balance': str(net_balance),
+                'balance': str(round(net_balance, 2)),
+                'currency': preferred,
             })
 
         return Response(result)

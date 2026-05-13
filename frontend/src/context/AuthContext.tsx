@@ -9,6 +9,7 @@ interface User {
   email: string;
   name: string;
   avatar?: string | null;
+  preferred_currency?: string;
 }
 
 interface AuthContextType {

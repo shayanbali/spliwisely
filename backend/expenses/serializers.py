@@ -35,7 +35,7 @@ class ExpenseSerializer(serializers.ModelSerializer):
     class Meta:
         model = Expense
         fields = (
-            'id', 'group', 'description', 'amount', 'paid_by', 'paid_by_id',
+            'id', 'group', 'description', 'amount', 'currency', 'paid_by', 'paid_by_id',
             'split_type', 'splits', 'participant_ids', 'exact_amounts',
             'percentages', 'created_at',
         )
@@ -107,4 +107,4 @@ class SettlementSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Settlement
-        fields = ('id', 'payer', 'payer_id', 'receiver', 'receiver_id', 'amount', 'group', 'note', 'created_at')
+        fields = ('id', 'payer', 'payer_id', 'receiver', 'receiver_id', 'amount', 'currency', 'group', 'note', 'created_at')

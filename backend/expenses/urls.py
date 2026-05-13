@@ -2,7 +2,7 @@ from django.urls import path
 from .views import (
     ExpenseListCreateView, ExpenseDetailView,
     SettlementListCreateView, BalancesView, SimplifiedBalancesView,
-    ActivityFeedView, GroupBalancesView,
+    ActivityFeedView, GroupBalancesView, ExchangeRatesView,
 )
 
 urlpatterns = [
@@ -13,4 +13,5 @@ urlpatterns = [
     path('balances/simplified/', SimplifiedBalancesView.as_view(), name='balances-simplified'),
     path('activity/', ActivityFeedView.as_view(), name='activity-feed'),
     path('group-balances/', GroupBalancesView.as_view(), name='group-balances'),
+    path('rates/', ExchangeRatesView.as_view(), name='exchange-rates'),
 ]

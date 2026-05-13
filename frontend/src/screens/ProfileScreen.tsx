@@ -4,12 +4,15 @@ import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../context/AuthContext';
 import Avatar from '../components/common/Avatar';
 import api from '../services/api';
+import { CURRENCIES, symbolOf } from '../utils/currency';
 
 export default function ProfileScreen() {
   const { user, setUser, logout } = useAuth();
   const [name, setName] = useState(user?.name ?? '');
+  const [preferredCurrency, setPreferredCurrency] = useState(user?.preferred_currency ?? 'USD');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [savingCurrency, setSavingCurrency] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   async function handlePickAvatar() {
@@ -46,6 +49,19 @@ export default function ProfileScreen() {
       Alert.alert('Error', 'Could not upload photo.');
     } finally {
       setUploadingAvatar(false);
+    }
+  }
+
+  async function handleSaveCurrency(c: string) {
+    setPreferredCurrency(c);
+    setSavingCurrency(true);
+    try {
+      const { data } = await api.patch('/auth/me/', { preferred_currency: c });
+      setUser(data);
+    } catch {
+      Alert.alert('Error', 'Could not update currency preference.');
+    } finally {
+      setSavingCurrency(false);
     }
   }
 
@@ -113,6 +129,32 @@ export default function ProfileScreen() {
       </View>
 
       <View style={styles.card}>
+        <View style={styles.currencyHeader}>
+          <Text style={styles.label}>Preferred Currency</Text>
+          {savingCurrency && <ActivityIndicator size="small" color="#1aa672" />}
+        </View>
+        <Text style={styles.currencyHint}>
+          All balances and totals will be shown in this currency.
+        </Text>
+        <View style={styles.currencyGrid}>
+          {CURRENCIES.map(c => (
+            <TouchableOpacity
+              key={c}
+              style={[styles.currencyChip, preferredCurrency === c && styles.currencyChipActive]}
+              onPress={() => handleSaveCurrency(c)}
+            >
+              <Text style={[styles.currencyChipSym, preferredCurrency === c && styles.currencyChipTextActive]}>
+                {symbolOf(c)}
+              </Text>
+              <Text style={[styles.currencyChipCode, preferredCurrency === c && styles.currencyChipTextActive]}>
+                {c}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+
+      <View style={styles.card}>
         <Text style={styles.label}>Account</Text>
         <TouchableOpacity style={styles.logoutRow} onPress={logout}>
           <Text style={styles.logoutText}>Log out</Text>
@@ -146,4 +188,12 @@ const styles = StyleSheet.create({
   saveBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
   logoutRow: { paddingVertical: 8 },
   logoutText: { fontSize: 16, color: '#e53935', fontWeight: '600' },
+  currencyHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  currencyHint: { fontSize: 13, color: '#999', marginBottom: 14, marginTop: -4 },
+  currencyGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  currencyChip: { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderColor: '#e0e0e0', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, gap: 4 },
+  currencyChipActive: { borderColor: '#1aa672', backgroundColor: '#e8f5e9' },
+  currencyChipSym: { fontSize: 15, fontWeight: '700', color: '#555' },
+  currencyChipCode: { fontSize: 13, color: '#555' },
+  currencyChipTextActive: { color: '#1aa672' },
 });
