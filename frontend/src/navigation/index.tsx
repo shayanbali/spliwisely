@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
+import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import { C } from '../theme';
@@ -35,11 +36,19 @@ const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
 const TAB_ICONS: Record<string, string> = {
-  Dashboard: '⚖️',
-  Groups: '👥',
-  Activity: '🕐',
-  Friends: '🤝',
-  Profile: '👤',
+  Dashboard: 'scale',
+  Groups: 'people',
+  Activity: 'time',
+  Friends: 'person-add',
+  Profile: 'person-circle',
+};
+
+const TAB_LABELS: Record<string, string> = {
+  Dashboard: 'Balance',
+  Groups: 'Groups',
+  Activity: 'Activity',
+  Friends: 'Friends',
+  Profile: 'Profile',
 };
 
 function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
@@ -48,28 +57,17 @@ function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   return (
     <View
       pointerEvents="box-none"
-      style={[
-        styles.outer,
-        { bottom: insets.bottom + 12 },
-      ]}
+      style={[styles.outer, { bottom: insets.bottom + 12 }]}
     >
       <View style={styles.shadowWrap}>
         <View style={styles.tabBar}>
-          <BlurView
-            tint="light"
-            intensity={80}
-            style={StyleSheet.absoluteFill}
-          />
+          <BlurView tint="light" intensity={80} style={StyleSheet.absoluteFill} />
           <View style={[StyleSheet.absoluteFill, styles.glassOverlay]} />
 
           {state.routes.map((route, index) => {
             const focused = state.index === index;
-            const { options } = descriptors[route.key];
-            const label =
-              (options.tabBarLabel as string) ??
-              options.title ??
-              route.name;
             const icon = TAB_ICONS[route.name] ?? '•';
+            const label = TAB_LABELS[route.name] ?? route.name;
 
             const onPress = () => {
               const event = navigation.emit({
@@ -77,11 +75,7 @@ function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
                 target: route.key,
                 canPreventDefault: true,
               });
-              if (Platform.OS === 'ios') {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-              } else {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-              }
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
               if (!focused && !event.defaultPrevented) {
                 navigation.navigate(route.name as never);
               }
@@ -92,18 +86,21 @@ function FloatingTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
                 key={route.key}
                 accessibilityRole="button"
                 accessibilityState={focused ? { selected: true } : {}}
-                accessibilityLabel={typeof label === 'string' ? label : route.name}
+                accessibilityLabel={label}
                 onPress={onPress}
                 activeOpacity={0.7}
                 style={styles.tabItem}
               >
                 {focused ? (
                   <View style={styles.activeCircle}>
-                    <Text style={styles.activeIcon}>{icon}</Text>
+                    <Ionicons name={icon as any} size={18} color="#fff" />
                   </View>
                 ) : (
-                  <Text style={styles.inactiveIcon}>{icon}</Text>
+                  <Ionicons name={`${icon}-outline` as any} size={20} color="rgba(60,60,67,0.4)" />
                 )}
+                <Text style={[styles.tabLabel, focused && styles.tabLabelActive]}>
+                  {label}
+                </Text>
               </TouchableOpacity>
             );
           })}
@@ -117,7 +114,10 @@ function MainTabs() {
   return (
     <Tab.Navigator
       tabBar={(props) => <FloatingTabBar {...props} />}
-      screenOptions={{ headerShown: false }}
+      screenOptions={{
+        headerShown: false,
+        animation: 'fade',
+      }}
     >
       <Tab.Screen name="Dashboard" component={DashboardScreen} />
       <Tab.Screen name="Groups" component={GroupsScreen} />
@@ -127,6 +127,11 @@ function MainTabs() {
     </Tab.Navigator>
   );
 }
+
+const modalScreenOptions = {
+  animation: 'slide_from_bottom',
+  gestureEnabled: true,
+} as const;
 
 export default function Navigation() {
   const { user, isLoading } = useAuth();
@@ -141,19 +146,25 @@ export default function Navigation() {
 
   return (
     <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Navigator
+        screenOptions={{
+          headerShown: false,
+          animation: 'default',
+          gestureEnabled: true,
+        }}
+      >
         {user ? (
           <>
             <Stack.Screen name="Main" component={MainTabs} />
             <Stack.Screen name="GroupDetail" component={GroupDetailScreen} />
-            <Stack.Screen name="AddExpense" component={AddExpenseScreen} />
-            <Stack.Screen name="EditExpense" component={EditExpenseScreen} />
-            <Stack.Screen name="SettleUp" component={SettleUpScreen} />
+            <Stack.Screen name="AddExpense" component={AddExpenseScreen} options={modalScreenOptions} />
+            <Stack.Screen name="EditExpense" component={EditExpenseScreen} options={modalScreenOptions} />
+            <Stack.Screen name="SettleUp" component={SettleUpScreen} options={modalScreenOptions} />
           </>
         ) : (
           <>
-            <Stack.Screen name="Login" component={LoginScreen} />
-            <Stack.Screen name="Register" component={RegisterScreen} />
+            <Stack.Screen name="Login" component={LoginScreen} options={{ animation: 'fade' }} />
+            <Stack.Screen name="Register" component={RegisterScreen} options={{ animation: 'fade' }} />
           </>
         )}
       </Stack.Navigator>
@@ -177,13 +188,14 @@ const styles = StyleSheet.create({
     elevation: 12,
   },
   tabBar: {
-    height: 64,
-    borderRadius: 32,
+    height: 76,
+    borderRadius: 36,
     overflow: 'hidden',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
     paddingHorizontal: 8,
+    paddingVertical: 8,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.7)',
   },
@@ -194,12 +206,13 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 3,
     height: '100%',
   },
   activeCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: C.accent,
     alignItems: 'center',
     justifyContent: 'center',
@@ -209,11 +222,13 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
   },
-  activeIcon: {
-    fontSize: 20,
+  tabLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: 'rgba(60,60,67,0.4)',
+    letterSpacing: 0.1,
   },
-  inactiveIcon: {
-    fontSize: 22,
-    opacity: 0.5,
+  tabLabelActive: {
+    color: C.accent,
   },
 });

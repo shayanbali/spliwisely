@@ -38,7 +38,9 @@ class ExpenseDetailView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return Expense.objects.filter(splits__user=self.request.user).distinct()
+        return Expense.objects.filter(
+            group__members__user=self.request.user
+        ).select_related('paid_by', 'group').prefetch_related('splits__user').distinct()
 
 
 class SettlementListCreateView(generics.ListCreateAPIView):

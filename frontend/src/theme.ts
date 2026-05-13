@@ -49,12 +49,14 @@ export const C = {
   chevron: 'rgba(60,60,67,0.3)',
 };
 
-export const TAB_PAD = 110;
+export const TAB_PAD = 124;
 
 const card: ViewStyle = {
   backgroundColor: C.bgElevated,
   borderRadius: 20,
   padding: 16,
+  borderWidth: StyleSheet.hairlineWidth,
+  borderColor: 'rgba(255,255,255,0.8)',
 };
 
 const shadow: ViewStyle = {

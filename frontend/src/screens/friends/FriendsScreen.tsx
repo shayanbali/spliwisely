@@ -3,6 +3,7 @@ import {
   View, Text, FlatList, StyleSheet, ActivityIndicator,
   RefreshControl, TouchableOpacity,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import Avatar from '../../components/common/Avatar';
 import { useFocusEffect } from '@react-navigation/native';
 import { getFriends } from '../../services/groups';
@@ -48,7 +49,7 @@ export default function FriendsScreen() {
   if (error) {
     return (
       <View style={[styles.container, styles.centerBox]}>
-        <Text style={styles.errorIcon}>⚠️</Text>
+        <Ionicons name="warning-outline" size={48} color={C.warning} style={{ marginBottom: 12 }} />
         <Text style={styles.errorText}>Could not load friends</Text>
         <TouchableOpacity
           style={styles.retryBtn}
@@ -80,7 +81,9 @@ export default function FriendsScreen() {
         }
         ListEmptyComponent={
           <View style={styles.emptyBox}>
-            <Text style={styles.emptyIcon}>🤝</Text>
+            <View style={styles.emptyIconCircle}>
+              <Ionicons name="person-add-outline" size={32} color={C.accent} />
+            </View>
             <Text style={styles.emptyTitle}>No friends yet</Text>
             <Text style={styles.emptySub}>
               Add members to a group to connect with friends.
@@ -151,7 +154,6 @@ const styles = StyleSheet.create({
     color: C.text,
   },
 
-  errorIcon: { fontSize: 48, marginBottom: 12 },
   errorText: {
     fontSize: 17,
     fontWeight: '600',
@@ -167,7 +169,15 @@ const styles = StyleSheet.create({
   retryBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
 
   emptyBox: { alignItems: 'center', marginTop: 60, padding: 24 },
-  emptyIcon: { fontSize: 52, marginBottom: 12 },
+  emptyIconCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: C.accentSoft,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
   emptyTitle: {
     fontSize: 20,
     fontWeight: '700',
@@ -188,6 +198,8 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 14,
     marginBottom: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.8)',
   },
   avatarMargin: { marginRight: 12 },
   info: { flex: 1 },

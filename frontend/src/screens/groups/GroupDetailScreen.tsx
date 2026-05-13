@@ -3,6 +3,7 @@ import {
   View, Text, FlatList, StyleSheet, TouchableOpacity,
   ActivityIndicator, Alert, TextInput, RefreshControl,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { getGroup, addMember } from '../../services/groups';
 import { useAuth } from '../../context/AuthContext';
@@ -118,14 +119,14 @@ export default function GroupDetailScreen({ route, navigation }: any) {
     return (
       <View style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={10}>
-            <Text style={styles.back}>‹ Back</Text>
+          <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={12} style={styles.backBtn}>
+            <Ionicons name="chevron-back" size={22} color={C.accent} />
           </TouchableOpacity>
           <Text style={styles.title}>{initialGroup.name}</Text>
           <View style={{ width: 80 }} />
         </View>
         <View style={styles.centerBox}>
-          <Text style={styles.errorIcon}>⚠️</Text>
+          <Ionicons name="warning-outline" size={48} color={C.warning} style={{ marginBottom: 12 }} />
           <Text style={styles.errorText}>Could not load group</Text>
           <TouchableOpacity
             style={styles.retryBtn}
@@ -142,8 +143,8 @@ export default function GroupDetailScreen({ route, navigation }: any) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={10}>
-          <Text style={styles.back}>‹ Back</Text>
+        <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={12} style={styles.backBtn}>
+          <Ionicons name="chevron-back" size={22} color={C.accent} />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <Text style={styles.title}>{group.name}</Text>
@@ -188,7 +189,7 @@ export default function GroupDetailScreen({ route, navigation }: any) {
                           avatar={t.from.avatar}
                           size={32}
                         />
-                        <Text style={styles.settlementArrow}>→</Text>
+                        <Ionicons name="arrow-forward" size={14} color={C.textSecondary} />
                         <Avatar
                           name={t.to.name}
                           email={t.to.email}
@@ -256,7 +257,9 @@ export default function GroupDetailScreen({ route, navigation }: any) {
         contentContainerStyle={{ paddingBottom: TAB_PAD }}
         ListEmptyComponent={
           <View style={styles.emptyBox}>
-            <Text style={styles.emptyIcon}>💸</Text>
+            <View style={styles.emptyIconCircle}>
+              <Ionicons name="receipt-outline" size={32} color={C.accent} />
+            </View>
             <Text style={styles.emptyTitle}>No expenses yet</Text>
             <Text style={styles.emptySub}>Tap "+ Add" to record your first expense.</Text>
           </View>
@@ -287,12 +290,7 @@ export default function GroupDetailScreen({ route, navigation }: any) {
           const convStr = converted(total, expCurrency);
 
           return (
-            <TouchableOpacity
-              style={[styles.expenseRow, S.shadowSm]}
-              onLongPress={() => handleExpenseActions(item)}
-              delayLongPress={400}
-              activeOpacity={0.8}
-            >
+            <View style={[styles.expenseRow, S.shadowSm]}>
               <View style={styles.expenseIcon}>
                 <Text style={styles.expenseIconText}>{expCurrency[0]}</Text>
               </View>
@@ -305,8 +303,15 @@ export default function GroupDetailScreen({ route, navigation }: any) {
                   <Text style={[styles.expenseShare, { color: shareColor }]}>{shareLabel}</Text>
                 ) : null}
               </View>
-              <Text style={styles.deleteHint}>⋮</Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => handleExpenseActions(item)}
+                hitSlop={12}
+                style={styles.menuBtn}
+                activeOpacity={0.6}
+              >
+                <Ionicons name="ellipsis-vertical" size={18} color={C.textMuted} />
+              </TouchableOpacity>
+            </View>
           );
         }}
       />
@@ -356,7 +361,7 @@ const styles = StyleSheet.create({
     backgroundColor: C.bg,
   },
   headerCenter: { alignItems: 'center', gap: 4 },
-  back: { fontSize: 17, color: C.accent, fontWeight: '500', width: 80 },
+  backBtn: { width: 36, height: 36, justifyContent: 'center' },
   title: { fontSize: 17, fontWeight: '700', color: C.text, letterSpacing: -0.2 },
   curBadge: {
     backgroundColor: C.accentSoft,
@@ -381,6 +386,8 @@ const styles = StyleSheet.create({
     backgroundColor: C.bgElevated,
     borderRadius: 20,
     overflow: 'hidden',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.8)',
   },
 
   settlementRow: {
@@ -395,7 +402,6 @@ const styles = StyleSheet.create({
     borderBottomColor: C.separator,
   },
   settlementLeft: { flexDirection: 'row', alignItems: 'center', flex: 1, gap: 6 },
-  settlementArrow: { fontSize: 14, color: C.textSecondary },
   settlementNames: { flex: 1, marginLeft: 4 },
   settlementText: { fontSize: 13, fontWeight: '600', color: C.text },
   settlementTextMuted: { fontWeight: '400', color: C.textSecondary },
@@ -450,6 +456,8 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     paddingHorizontal: 14,
     paddingVertical: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.8)',
   },
   expenseIcon: {
     width: 40,
@@ -462,17 +470,27 @@ const styles = StyleSheet.create({
   },
   expenseIconText: { fontSize: 16, fontWeight: '800', color: '#FF9F0A' },
   expenseInfo: { flex: 1 },
+  menuBtn: {
+    paddingLeft: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   expenseDesc: { fontSize: 15, fontWeight: '700', color: C.text },
   expenseSub: { fontSize: 12, color: C.textSecondary, marginTop: 2 },
   expenseShare: { fontSize: 12, fontWeight: '700', marginTop: 3 },
-  deleteHint: { fontSize: 20, color: C.textMuted, paddingLeft: 8 },
-
   emptyBox: { alignItems: 'center', paddingVertical: 40, paddingHorizontal: 24 },
-  emptyIcon: { fontSize: 48, marginBottom: 12 },
+  emptyIconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: C.accentSoft,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
   emptyTitle: { fontSize: 18, fontWeight: '700', color: C.text, marginBottom: 6 },
   emptySub: { fontSize: 13, color: C.textSecondary, textAlign: 'center', lineHeight: 18 },
 
-  errorIcon: { fontSize: 48, marginBottom: 12 },
   errorText: { fontSize: 17, fontWeight: '600', color: C.text, marginBottom: 20 },
   retryBtn: { backgroundColor: C.accent, borderRadius: 16, paddingHorizontal: 28, paddingVertical: 14 },
   retryBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },

@@ -3,6 +3,7 @@ import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   Alert, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import { useCurrency } from '../../context/CurrencyContext';
 import { createSettlement } from '../../services/expenses';
@@ -71,7 +72,7 @@ export default function SettleUpScreen({ route, navigation }: any) {
           </View>
 
           <View style={styles.arrowWrap}>
-            <Text style={styles.arrow}>→</Text>
+            <Ionicons name="arrow-forward" size={22} color={C.textSecondary} />
           </View>
 
           <View style={styles.userBox}>

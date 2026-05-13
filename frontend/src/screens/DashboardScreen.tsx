@@ -4,6 +4,7 @@ import {
   ActivityIndicator, RefreshControl,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import Avatar from '../components/common/Avatar';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
@@ -58,7 +59,7 @@ export default function DashboardScreen({ navigation }: any) {
   if (error) {
     return (
       <View style={[styles.container, styles.centerBox]}>
-        <Text style={styles.errorIcon}>⚠️</Text>
+        <Ionicons name="warning-outline" size={48} color={C.warning} style={{ marginBottom: 12 }} />
         <Text style={styles.errorText}>Could not load balances</Text>
         <TouchableOpacity
           style={styles.retryBtn}
@@ -119,7 +120,9 @@ export default function DashboardScreen({ navigation }: any) {
 
             {balances.length === 0 && (
               <View style={styles.emptyBox}>
-                <Text style={styles.emptyIcon}>🎉</Text>
+                <View style={styles.emptyIconCircle}>
+                  <Ionicons name="checkmark-circle-outline" size={36} color={C.accent} />
+                </View>
                 <Text style={styles.emptyTitle}>All settled up!</Text>
                 <Text style={styles.emptySub}>
                   Add expenses in a group to see who owes what.
@@ -234,13 +237,21 @@ const styles = StyleSheet.create({
     marginLeft: 20,
   },
 
+  emptyIconCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: C.accentSoft,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
   emptyBox: {
     alignItems: 'center',
     paddingHorizontal: 24,
     paddingTop: 24,
     paddingBottom: 32,
   },
-  emptyIcon: { fontSize: 52, marginBottom: 12 },
   emptyTitle: {
     fontSize: 20,
     fontWeight: '700',
@@ -254,7 +265,6 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
 
-  errorIcon: { fontSize: 48, marginBottom: 12 },
   errorText: {
     fontSize: 17,
     fontWeight: '600',
@@ -277,6 +287,8 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     padding: 14,
     borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.8)',
   },
   avatarMargin: { marginRight: 12 },
   balanceInfo: { flex: 1 },

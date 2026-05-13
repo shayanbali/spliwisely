@@ -3,15 +3,19 @@ import {
   View, Text, FlatList, StyleSheet, TouchableOpacity,
   ActivityIndicator, Alert, TextInput, RefreshControl,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { getGroups, createGroup } from '../../services/groups';
 import { getGroupBalances } from '../../services/expenses';
 import { Group } from '../../types';
 import BottomModal from '../../components/common/BottomModal';
-import { CURRENCIES } from '../../utils/currency';
+import { CURRENCIES, fmt } from '../../utils/currency';
+import { useCurrency } from '../../context/CurrencyContext';
 import { C, S, TAB_PAD } from '../../theme';
 
 export default function GroupsScreen({ navigation }: any) {
+  const { preferredCurrency } = useCurrency();
   const [groups, setGroups] = useState<Group[]>([]);
   const [balances, setBalances] = useState<Record<number, number>>({});
   const [loading, setLoading] = useState(true);
@@ -67,7 +71,7 @@ export default function GroupsScreen({ navigation }: any) {
   if (error) {
     return (
       <View style={[styles.container, styles.centerBox]}>
-        <Text style={styles.errorIcon}>⚠️</Text>
+        <Ionicons name="warning-outline" size={48} color={C.warning} style={{ marginBottom: 12 }} />
         <Text style={styles.errorText}>Could not load groups</Text>
         <TouchableOpacity
           style={styles.retryBtn}
@@ -107,7 +111,9 @@ export default function GroupsScreen({ navigation }: any) {
         }
         ListEmptyComponent={
           <View style={styles.emptyBox}>
-            <Text style={styles.emptyIcon}>👥</Text>
+            <View style={styles.emptyIconCircle}>
+              <Ionicons name="people-outline" size={36} color={C.accent} />
+            </View>
             <Text style={styles.emptyTitle}>No groups yet</Text>
             <Text style={styles.emptySub}>
               Create a group to start splitting expenses with friends.
@@ -132,20 +138,20 @@ export default function GroupsScreen({ navigation }: any) {
               onPress={() => navigation.navigate('GroupDetail', { group: item })}
               activeOpacity={0.8}
             >
-              <View style={styles.cardIcon}>
+              <LinearGradient
+                colors={[C.accent, C.accentDark]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.cardIcon}
+              >
                 <Text style={styles.cardIconText}>
                   {item.name[0].toUpperCase()}
                 </Text>
-              </View>
+              </LinearGradient>
 
               <View style={styles.cardInfo}>
                 <Text style={styles.cardName}>{item.name}</Text>
-                <View style={styles.cardSubRow}>
-                  <Text style={styles.cardSub}>{item.member_count} members</Text>
-                  <View style={styles.curBadge}>
-                    <Text style={styles.curBadgeText}>{item.currency}</Text>
-                  </View>
-                </View>
+                <Text style={styles.cardSub}>{item.member_count} members</Text>
               </View>
 
               <View style={styles.balanceBox}>
@@ -166,7 +172,7 @@ export default function GroupsScreen({ navigation }: any) {
                         { color: isPositive ? C.positive : C.negative },
                       ]}
                     >
-                      {isPositive ? '+' : ''}{balance.toFixed(2)}
+                      {isPositive ? '+' : '-'}{fmt(Math.abs(balance), preferredCurrency)}
                     </Text>
                   </View>
                 )}
@@ -271,43 +277,21 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 14,
     marginBottom: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.8)',
   },
   cardIcon: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: C.accent,
+    width: 48,
+    height: 48,
+    borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 14,
-    shadowColor: C.accent,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 4,
   },
-  cardIconText: { fontSize: 26, fontWeight: '800', color: '#fff' },
+  cardIconText: { fontSize: 20, fontWeight: '800', color: '#fff' },
   cardInfo: { flex: 1 },
   cardName: { fontSize: 17, fontWeight: '700', color: C.text },
-  cardSubRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 4,
-    gap: 6,
-  },
-  cardSub: { fontSize: 13, color: C.textSecondary },
-  curBadge: {
-    backgroundColor: 'rgba(48,209,88,0.12)',
-    borderRadius: 8,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-  },
-  curBadgeText: {
-    fontSize: 11,
-    color: C.accent,
-    fontWeight: '700',
-    letterSpacing: 0.2,
-  },
+  cardSub: { fontSize: 13, color: C.textSecondary, marginTop: 4 },
 
   balanceBox: { alignItems: 'flex-end' },
   balancePill: {
@@ -331,7 +315,6 @@ const styles = StyleSheet.create({
   },
   settledText: { fontSize: 13, color: C.textSecondary, fontWeight: '600' },
 
-  errorIcon: { fontSize: 48, marginBottom: 12 },
   errorText: {
     fontSize: 17,
     fontWeight: '600',
@@ -347,7 +330,15 @@ const styles = StyleSheet.create({
   retryBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
 
   emptyBox: { alignItems: 'center', marginTop: 60, padding: 24 },
-  emptyIcon: { fontSize: 52, marginBottom: 12 },
+  emptyIconCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: C.accentSoft,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
   emptyTitle: {
     fontSize: 20,
     fontWeight: '700',

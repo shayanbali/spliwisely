@@ -3,6 +3,7 @@ import {
   View, Text, FlatList, StyleSheet, ActivityIndicator,
   RefreshControl, TouchableOpacity,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { getActivityFeed } from '../services/expenses';
 import { useAuth } from '../context/AuthContext';
@@ -56,7 +57,7 @@ export default function ActivityScreen() {
   if (error) {
     return (
       <View style={[styles.container, styles.centerBox]}>
-        <Text style={styles.errorIcon}>⚠️</Text>
+        <Ionicons name="warning-outline" size={48} color={C.warning} style={{ marginBottom: 12 }} />
         <Text style={styles.errorText}>Could not load activity</Text>
         <TouchableOpacity
           style={styles.retryBtn}
@@ -143,7 +144,7 @@ export default function ActivityScreen() {
             size={42}
           />
           <View style={styles.settlementBadge}>
-            <Text style={{ fontSize: 10 }}>✅</Text>
+            <Ionicons name="checkmark" size={10} color={C.positive} />
           </View>
         </View>
         <View style={styles.info}>
@@ -192,7 +193,9 @@ export default function ActivityScreen() {
         }
         ListEmptyComponent={
           <View style={styles.emptyBox}>
-            <Text style={styles.emptyIcon}>🕐</Text>
+            <View style={styles.emptyIconCircle}>
+              <Ionicons name="time-outline" size={36} color={C.accent} />
+            </View>
             <Text style={styles.emptyTitle}>No activity yet</Text>
             <Text style={styles.emptySub}>
               Add an expense in a group to see your activity here.
@@ -247,6 +250,8 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 14,
     marginBottom: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.8)',
   },
   avatarMargin: { marginRight: 12 },
   settlementAvatarBox: { position: 'relative', marginRight: 12 },
@@ -294,7 +299,15 @@ const styles = StyleSheet.create({
   time: { fontSize: 11, color: C.textMuted, marginLeft: 8, marginTop: 2 },
 
   emptyBox: { alignItems: 'center', marginTop: 60, padding: 24 },
-  emptyIcon: { fontSize: 52, marginBottom: 12 },
+  emptyIconCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: C.accentSoft,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
   emptyTitle: {
     fontSize: 20,
     fontWeight: '700',
@@ -308,7 +321,6 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
 
-  errorIcon: { fontSize: 48, marginBottom: 12 },
   errorText: {
     fontSize: 17,
     fontWeight: '600',

@@ -5,6 +5,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
@@ -56,7 +57,7 @@ export default function RegisterScreen({ navigation }: Props) {
         >
           <View style={styles.iconWrap}>
             <View style={styles.iconCircle}>
-              <Text style={styles.iconText}>₹</Text>
+              <Ionicons name="scale" size={38} color="#fff" />
             </View>
           </View>
 
@@ -142,11 +143,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 16,
     elevation: 8,
-  },
-  iconText: {
-    fontSize: 40,
-    fontWeight: '800',
-    color: '#fff',
   },
   title: {
     fontSize: 32,

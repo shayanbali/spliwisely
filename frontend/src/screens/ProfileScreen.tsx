@@ -4,6 +4,7 @@ import {
   ActivityIndicator, Alert, ScrollView,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import Avatar from '../components/common/Avatar';
 import api from '../services/api';
@@ -114,7 +115,7 @@ export default function ProfileScreen() {
           <View style={styles.cameraOverlay}>
             {uploadingAvatar
               ? <ActivityIndicator color="#fff" size="small" />
-              : <Text style={styles.cameraIcon}>📷</Text>
+              : <Ionicons name="camera" size={14} color="#fff" />
             }
           </View>
         </TouchableOpacity>
@@ -234,7 +235,6 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: C.bg,
   },
-  cameraIcon: { fontSize: 13 },
   heroName: {
     fontSize: 22,
     fontWeight: '800',

@@ -106,11 +106,16 @@ export default function EditExpenseScreen({ route, navigation }: any) {
           ),
         }),
       });
-      onDone();
       navigation.goBack();
+      onDone?.();
     } catch (e: any) {
-      const msg = e.response?.data?.non_field_errors?.[0] ?? 'Could not update expense.';
-      Alert.alert('Error', msg);
+      const errData = (e as any).response?.data;
+      const msg =
+        errData?.non_field_errors?.[0] ??
+        errData?.detail ??
+        (errData ? Object.values(errData)[0] as string : null) ??
+        'Could not update expense.';
+      Alert.alert('Error', String(msg));
     } finally {
       setLoading(false);
     }
