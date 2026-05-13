@@ -3,6 +3,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.db.models import Q
 from decimal import Decimal
+from collections import defaultdict
 from django.contrib.auth import get_user_model
 from groups.serializers import UserBriefSerializer
 from groups.models import Group
@@ -19,10 +20,16 @@ class ExpenseListCreateView(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        qs = Expense.objects.filter(splits__user=self.request.user).distinct()
         group_id = self.request.query_params.get('group')
         if group_id:
-            qs = qs.filter(group_id=group_id)
+            # Show all expenses in the group to any group member
+            qs = Expense.objects.filter(
+                group_id=group_id,
+                group__members__user=self.request.user,
+            ).distinct()
+        else:
+            # Global view: only expenses the user participates in
+            qs = Expense.objects.filter(splits__user=self.request.user).distinct()
         return qs.select_related('paid_by', 'group').prefetch_related('splits__user')
 
 
@@ -100,17 +107,17 @@ class BalancesView(APIView):
             else:
                 balances[s.payer_id] = balances.get(s.payer_id, Decimal('0')) - converted
 
-        result = []
-        for user_id, amount in balances.items():
-            if abs(amount) < Decimal('0.01'):
-                continue
-            other_user = User.objects.get(id=user_id)
-            result.append({
-                'user': UserBriefSerializer(other_user, context={'request': request}).data,
-                'amount': str(round(amount, 2)),
+        significant = {uid: amt for uid, amt in balances.items() if abs(amt) >= Decimal('0.01')}
+        users_map = {u.id: u for u in User.objects.filter(id__in=significant.keys())}
+        result = [
+            {
+                'user': UserBriefSerializer(users_map[uid], context={'request': request}).data,
+                'amount': str(round(amt, 2)),
                 'currency': preferred,
-            })
-
+            }
+            for uid, amt in significant.items()
+            if uid in users_map
+        ]
         return Response(result)
 
 
@@ -126,16 +133,18 @@ class SimplifiedBalancesView(APIView):
         preferred = request.user.preferred_currency
         rates = get_rates()
 
-        expenses_qs = Expense.objects.all().select_related('paid_by').prefetch_related('splits')
-        settlements_qs = Settlement.objects.all()
+        user_groups = Group.objects.filter(members__user=request.user)
+
+        expenses_qs = Expense.objects.filter(
+            group__in=user_groups
+        ).select_related('paid_by').prefetch_related('splits')
+        settlements_qs = Settlement.objects.filter(group__in=user_groups)
 
         if group_id:
             expenses_qs = expenses_qs.filter(group_id=group_id)
             settlements_qs = settlements_qs.filter(group_id=group_id)
 
         # Build currency-converted net balances
-        from decimal import Decimal
-        from collections import defaultdict
         net = defaultdict(Decimal)
 
         for expense in expenses_qs:
@@ -156,17 +165,17 @@ class SimplifiedBalancesView(APIView):
         net_filtered = {uid: amt for uid, amt in net.items() if abs(amt) > Decimal('0.01')}
         transactions = simplify_debts(net_filtered)
 
-        result = []
-        for debtor_id, creditor_id, amount in transactions:
-            debtor = User.objects.get(id=debtor_id)
-            creditor = User.objects.get(id=creditor_id)
-            result.append({
-                'from': UserBriefSerializer(debtor, context={'request': request}).data,
-                'to': UserBriefSerializer(creditor, context={'request': request}).data,
+        all_ids = {uid for pair in transactions for uid in pair[:2]}
+        users_map = {u.id: u for u in User.objects.filter(id__in=all_ids)}
+        result = [
+            {
+                'from': UserBriefSerializer(users_map[debtor_id], context={'request': request}).data,
+                'to': UserBriefSerializer(users_map[creditor_id], context={'request': request}).data,
                 'amount': str(round(amount, 2)),
                 'currency': preferred,
-            })
-
+            }
+            for debtor_id, creditor_id, amount in transactions
+        ]
         return Response(result)
 
 

@@ -22,10 +22,11 @@ export function CurrencyProvider({ children }: { children: React.ReactNode }) {
   const preferredCurrency = user?.preferred_currency ?? 'USD';
 
   useEffect(() => {
+    if (!user) return;
     api.get('/expenses/rates/').then(r => {
       setRates(r.data.rates);
     }).catch(() => {});
-  }, []);
+  }, [user?.id]);
 
   const value: CurrencyContextType = {
     rates,

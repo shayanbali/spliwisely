@@ -1,11 +1,15 @@
 import React, { useCallback, useState } from 'react';
-import { View, Text, FlatList, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity } from 'react-native';
+import {
+  View, Text, FlatList, StyleSheet, ActivityIndicator,
+  RefreshControl, TouchableOpacity,
+} from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { getActivityFeed } from '../services/expenses';
 import { useAuth } from '../context/AuthContext';
 import { useCurrency } from '../context/CurrencyContext';
 import Avatar from '../components/common/Avatar';
 import { fmt } from '../utils/currency';
+import { C, S, TAB_PAD } from '../theme';
 
 function timeAgo(isoString: string) {
   const diff = Date.now() - new Date(isoString).getTime();
@@ -41,18 +45,25 @@ export default function ActivityScreen() {
 
   useFocusEffect(useCallback(() => { load(); }, []));
 
-  if (loading) return <ActivityIndicator style={{ flex: 1 }} size="large" color="#1aa672" />;
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.centerBox]}>
+        <ActivityIndicator size="large" color={C.accent} />
+      </View>
+    );
+  }
 
   if (error) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 }}>
-        <Text style={{ fontSize: 48, marginBottom: 12 }}>⚠️</Text>
-        <Text style={{ fontSize: 17, fontWeight: '600', color: '#333', marginBottom: 20 }}>Could not load activity</Text>
+      <View style={[styles.container, styles.centerBox]}>
+        <Text style={styles.errorIcon}>⚠️</Text>
+        <Text style={styles.errorText}>Could not load activity</Text>
         <TouchableOpacity
-          style={{ backgroundColor: '#1aa672', borderRadius: 10, paddingHorizontal: 28, paddingVertical: 12 }}
+          style={styles.retryBtn}
           onPress={() => { setLoading(true); load(); }}
+          activeOpacity={0.85}
         >
-          <Text style={{ color: '#fff', fontWeight: '600', fontSize: 15 }}>Try Again</Text>
+          <Text style={styles.retryBtnText}>Try Again</Text>
         </TouchableOpacity>
       </View>
     );
@@ -68,23 +79,23 @@ export default function ActivityScreen() {
     const lent = item.i_paid ? total - myShare : 0;
 
     let shareText = '';
-    let shareColor = '#999';
+    let shareColor: string = C.textSecondary;
     if (item.i_paid && lent > 0.005) {
       shareText = `you lent ${fmt(lent, currency)}`;
-      shareColor = '#1aa672';
+      shareColor = C.positive;
     } else if (item.i_paid) {
       shareText = 'you paid in full';
-      shareColor = '#1aa672';
+      shareColor = C.positive;
     } else if (myShare > 0) {
       shareText = `your share ${fmt(myShare, currency)}`;
-      shareColor = '#e53935';
+      shareColor = C.negative;
     }
 
     const paidByName = item.i_paid ? 'You' : (item.paid_by.name || item.paid_by.email);
     const paidByUser = item.i_paid ? user : item.paid_by;
 
     return (
-      <View style={styles.card}>
+      <View style={[styles.card, S.shadowSm]}>
         <Avatar
           name={paidByUser?.name}
           email={paidByUser?.email}
@@ -101,8 +112,12 @@ export default function ActivityScreen() {
             {item.group ? <Text style={styles.sub}> · {item.group}</Text> : null}
           </View>
           <View style={styles.tagRow}>
-            <Text style={styles.badge}>{item.split_type} split</Text>
-            {shareText ? <Text style={[styles.shareTag, { color: shareColor }]}>{shareText}</Text> : null}
+            <View style={styles.badgePill}>
+              <Text style={styles.badge}>{item.split_type} split</Text>
+            </View>
+            {shareText ? (
+              <Text style={[styles.shareTag, { color: shareColor }]}>{shareText}</Text>
+            ) : null}
           </View>
         </View>
         <Text style={styles.time}>{timeAgo(item.created_at)}</Text>
@@ -119,7 +134,7 @@ export default function ActivityScreen() {
     const displayUser = isPayer ? user : item.payer;
 
     return (
-      <View style={styles.card}>
+      <View style={[styles.card, S.shadowSm]}>
         <View style={styles.settlementAvatarBox}>
           <Avatar
             name={displayUser?.name}
@@ -134,10 +149,14 @@ export default function ActivityScreen() {
         <View style={styles.info}>
           <Text style={styles.title}>Settlement</Text>
           <View style={styles.amountRow}>
-            <Text style={styles.sub}>{isPayer ? 'You paid' : `${item.payer.name || item.payer.email} paid`} </Text>
+            <Text style={styles.sub}>
+              {isPayer ? 'You paid' : `${item.payer.name || item.payer.email} paid`}{' '}
+            </Text>
             <Text style={styles.amountMain}>{amountFmt}</Text>
             {amountConverted ? <Text style={styles.amountConverted}> {amountConverted}</Text> : null}
-            <Text style={styles.sub}> to {isPayer ? (item.receiver.name || item.receiver.email) : 'you'}</Text>
+            <Text style={styles.sub}>
+              {' '}to {isPayer ? (item.receiver.name || item.receiver.email) : 'you'}
+            </Text>
           </View>
           {item.group ? <Text style={styles.groupTag}>· {item.group}</Text> : null}
           {item.note ? <Text style={styles.note}>"{item.note}"</Text> : null}
@@ -151,53 +170,156 @@ export default function ActivityScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Activity</Text>
-        <Text style={styles.headerSub}>showing in {preferredCurrency}</Text>
+        <View style={styles.currencyPill}>
+          <Text style={styles.currencyPillText}>{preferredCurrency}</Text>
+        </View>
       </View>
       <FlatList
         data={items}
         keyExtractor={(item, i) => `${item.type}-${item.id}-${i}`}
-        contentContainerStyle={{ padding: 16 }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
+        contentContainerStyle={{
+          paddingHorizontal: 16,
+          paddingBottom: TAB_PAD,
+          paddingTop: 8,
+        }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => { setRefreshing(true); load(); }}
+            tintColor={C.accent}
+            colors={[C.accent]}
+          />
+        }
         ListEmptyComponent={
-          <View style={{ alignItems: 'center', marginTop: 60, padding: 24 }}>
-            <Text style={{ fontSize: 52, marginBottom: 12 }}>🕐</Text>
-            <Text style={{ fontSize: 20, fontWeight: '700', marginBottom: 6 }}>No activity yet</Text>
-            <Text style={{ fontSize: 14, color: '#999', textAlign: 'center', lineHeight: 20 }}>
+          <View style={styles.emptyBox}>
+            <Text style={styles.emptyIcon}>🕐</Text>
+            <Text style={styles.emptyTitle}>No activity yet</Text>
+            <Text style={styles.emptySub}>
               Add an expense in a group to see your activity here.
             </Text>
           </View>
         }
-        renderItem={({ item }) => item.type === 'expense' ? renderExpense(item) : renderSettlement(item)}
+        renderItem={({ item }) =>
+          item.type === 'expense' ? renderExpense(item) : renderSettlement(item)
+        }
       />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5' },
-  header: { padding: 20, paddingTop: 60, backgroundColor: '#fff', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
-  headerTitle: { fontSize: 24, fontWeight: '800' },
-  headerSub: { fontSize: 12, color: '#999', marginBottom: 2 },
-  card: { flexDirection: 'row', alignItems: 'flex-start', backgroundColor: '#fff', borderRadius: 12, padding: 14, marginBottom: 10 },
+  container: { flex: 1, backgroundColor: C.bg },
+  centerBox: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
+
+  header: {
+    paddingTop: 60,
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    backgroundColor: C.bg,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+  },
+  headerTitle: {
+    fontSize: 34,
+    fontWeight: '800',
+    letterSpacing: -0.5,
+    color: C.text,
+  },
+  currencyPill: {
+    backgroundColor: 'rgba(48,209,88,0.12)',
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginBottom: 6,
+  },
+  currencyPillText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: C.accent,
+    letterSpacing: 0.3,
+  },
+
+  card: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: C.bgElevated,
+    borderRadius: 20,
+    padding: 14,
+    marginBottom: 10,
+  },
   avatarMargin: { marginRight: 12 },
   settlementAvatarBox: { position: 'relative', marginRight: 12 },
   settlementBadge: {
-    position: 'absolute', bottom: -2, right: -2,
-    width: 18, height: 18, borderRadius: 9,
-    backgroundColor: '#e8f5e9',
-    justifyContent: 'center', alignItems: 'center',
-    borderWidth: 1.5, borderColor: '#fff',
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#E8F9F0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#fff',
   },
   info: { flex: 1 },
-  title: { fontSize: 15, fontWeight: '600', marginBottom: 2 },
+  title: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 2,
+    color: C.text,
+  },
   amountRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' },
-  sub: { fontSize: 13, color: '#555' },
-  amountMain: { fontSize: 13, fontWeight: '700', color: '#333' },
-  amountConverted: { fontSize: 12, color: '#999' },
-  groupTag: { fontSize: 12, color: '#999', marginTop: 1 },
-  tagRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 },
-  badge: { fontSize: 11, color: '#1aa672', fontWeight: '600', textTransform: 'capitalize' },
+  sub: { fontSize: 13, color: C.textSecondary },
+  amountMain: { fontSize: 13, fontWeight: '700', color: C.text },
+  amountConverted: { fontSize: 12, color: C.textTertiary },
+  groupTag: { fontSize: 12, color: C.textTertiary, marginTop: 1 },
+  tagRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
+  badgePill: {
+    backgroundColor: 'rgba(48,209,88,0.12)',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  badge: {
+    fontSize: 11,
+    color: C.accent,
+    fontWeight: '700',
+    textTransform: 'capitalize',
+    letterSpacing: 0.2,
+  },
   shareTag: { fontSize: 11, fontWeight: '700' },
-  note: { marginTop: 4, fontSize: 12, color: '#999', fontStyle: 'italic' },
-  time: { fontSize: 11, color: '#bbb', marginLeft: 8, marginTop: 2 },
+  note: { marginTop: 4, fontSize: 12, color: C.textSecondary, fontStyle: 'italic' },
+  time: { fontSize: 11, color: C.textMuted, marginLeft: 8, marginTop: 2 },
+
+  emptyBox: { alignItems: 'center', marginTop: 60, padding: 24 },
+  emptyIcon: { fontSize: 52, marginBottom: 12 },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 6,
+    color: C.text,
+  },
+  emptySub: {
+    fontSize: 14,
+    color: C.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+
+  errorIcon: { fontSize: 48, marginBottom: 12 },
+  errorText: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: C.text,
+    marginBottom: 20,
+  },
+  retryBtn: {
+    backgroundColor: C.accent,
+    borderRadius: 16,
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+  },
+  retryBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
 });

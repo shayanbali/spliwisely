@@ -1,5 +1,8 @@
 import React, { useCallback, useState } from 'react';
-import { View, Text, FlatList, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, TextInput, RefreshControl } from 'react-native';
+import {
+  View, Text, FlatList, StyleSheet, TouchableOpacity,
+  ActivityIndicator, Alert, TextInput, RefreshControl,
+} from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { getGroup, addMember } from '../../services/groups';
 import { useAuth } from '../../context/AuthContext';
@@ -9,6 +12,7 @@ import BottomModal from '../../components/common/BottomModal';
 import Avatar from '../../components/common/Avatar';
 import { useCurrency } from '../../context/CurrencyContext';
 import { fmt } from '../../utils/currency';
+import { C, S, TAB_PAD } from '../../theme';
 
 export default function GroupDetailScreen({ route, navigation }: any) {
   const { user } = useAuth();
@@ -61,10 +65,29 @@ export default function GroupDetailScreen({ route, navigation }: any) {
     }
   }
 
-  function handleDeleteExpense(id: number, description: string) {
+  function handleExpenseActions(item: any) {
+    Alert.alert(
+      item.description,
+      'What would you like to do?',
+      [
+        {
+          text: 'Edit',
+          onPress: () => navigation.navigate('EditExpense', { group, expense: item, onDone: load }),
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => confirmDelete(item.id, item.description),
+        },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
+  }
+
+  function confirmDelete(id: number, description: string) {
     Alert.alert(
       'Delete Expense',
-      `Delete "${description}"?`,
+      `Delete "${description}"? This cannot be undone.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -83,22 +106,32 @@ export default function GroupDetailScreen({ route, navigation }: any) {
     );
   }
 
-  if (loading) return <ActivityIndicator style={{ flex: 1 }} size="large" color="#1aa672" />;
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.centerBox]}>
+        <ActivityIndicator size="large" color={C.accent} />
+      </View>
+    );
+  }
 
   if (error) {
     return (
       <View style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
+          <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={10}>
             <Text style={styles.back}>‹ Back</Text>
           </TouchableOpacity>
           <Text style={styles.title}>{initialGroup.name}</Text>
-          <View style={{ width: 60 }} />
+          <View style={{ width: 80 }} />
         </View>
         <View style={styles.centerBox}>
           <Text style={styles.errorIcon}>⚠️</Text>
           <Text style={styles.errorText}>Could not load group</Text>
-          <TouchableOpacity style={styles.retryBtn} onPress={() => { setLoading(true); load(); }}>
+          <TouchableOpacity
+            style={styles.retryBtn}
+            onPress={() => { setLoading(true); load(); }}
+            activeOpacity={0.85}
+          >
             <Text style={styles.retryBtnText}>Try Again</Text>
           </TouchableOpacity>
         </View>
@@ -109,70 +142,118 @@ export default function GroupDetailScreen({ route, navigation }: any) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
+        <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={10}>
           <Text style={styles.back}>‹ Back</Text>
         </TouchableOpacity>
         <View style={styles.headerCenter}>
           <Text style={styles.title}>{group.name}</Text>
-          <Text style={styles.headerSub}>{group.currency}</Text>
+          <View style={styles.curBadge}>
+            <Text style={styles.curBadgeText}>{group.currency}</Text>
+          </View>
         </View>
-        <TouchableOpacity onPress={() => setAddModal(true)}>
-          <Text style={styles.addBtn}>+ Member</Text>
+        <TouchableOpacity onPress={() => setAddModal(true)} hitSlop={10}>
+          <Text style={styles.addMemberBtn}>+ Member</Text>
         </TouchableOpacity>
       </View>
 
       <FlatList
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => { setRefreshing(true); load(); }}
+            tintColor={C.accent}
+            colors={[C.accent]}
+          />
+        }
         ListHeaderComponent={() => (
           <>
             {simplified.length > 0 && (
               <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Suggested Settlements</Text>
-                {simplified.map((t, i) => (
-                  <TouchableOpacity key={i} style={styles.settlementRow}
-                    onPress={() => navigation.navigate('SettleUp', { transaction: t, groupId: group.id, onDone: load })}>
-                    <Text style={styles.settlementText}>
-                      <Text style={{ fontWeight: '700' }}>{t.from.name || t.from.email}</Text>
-                      {' → '}
-                      <Text style={{ fontWeight: '700' }}>{t.to.name || t.to.email}</Text>
-                    </Text>
-                    <Text style={styles.settlementAmount}>{fmt(parseFloat(t.amount), t.currency ?? 'USD')}</Text>
-                  </TouchableOpacity>
-                ))}
+                <Text style={styles.sectionLabel}>Suggested Settlements</Text>
+                <View style={[styles.card, S.shadowSm]}>
+                  {simplified.map((t, i) => (
+                    <TouchableOpacity
+                      key={i}
+                      style={[
+                        styles.settlementRow,
+                        i < simplified.length - 1 && styles.settlementBorder,
+                      ]}
+                      onPress={() => navigation.navigate('SettleUp', { transaction: t, groupId: group.id, onDone: load })}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.settlementLeft}>
+                        <Avatar
+                          name={t.from.name}
+                          email={t.from.email}
+                          avatar={t.from.avatar}
+                          size={32}
+                        />
+                        <Text style={styles.settlementArrow}>→</Text>
+                        <Avatar
+                          name={t.to.name}
+                          email={t.to.email}
+                          avatar={t.to.avatar}
+                          size={32}
+                        />
+                        <View style={styles.settlementNames}>
+                          <Text style={styles.settlementText} numberOfLines={1}>
+                            {t.from.name || t.from.email}
+                            <Text style={styles.settlementTextMuted}> pays </Text>
+                            {t.to.name || t.to.email}
+                          </Text>
+                        </View>
+                      </View>
+                      <Text style={styles.settlementAmount}>
+                        {fmt(parseFloat(t.amount), t.currency ?? 'USD')}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
               </View>
             )}
 
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Members</Text>
-              {group.members.map(m => (
-                <View key={m.id} style={styles.memberRow}>
-                  <Avatar
-                    name={m.user.name}
-                    email={m.user.email}
-                    avatar={m.user.avatar}
-                    size={36}
-                    style={styles.avatarMargin}
-                  />
-                  <Text style={styles.memberName}>{m.user.name || m.user.email}</Text>
-                  <Text style={styles.memberRole}>{m.role}</Text>
-                </View>
-              ))}
+              <Text style={styles.sectionLabel}>Members</Text>
+              <View style={[styles.card, S.shadowSm]}>
+                {group.members.map((m, i) => (
+                  <View
+                    key={m.id}
+                    style={[
+                      styles.memberRow,
+                      i < group.members.length - 1 && styles.memberBorder,
+                    ]}
+                  >
+                    <Avatar
+                      name={m.user.name}
+                      email={m.user.email}
+                      avatar={m.user.avatar}
+                      size={40}
+                      style={{ marginRight: 12 }}
+                    />
+                    <Text style={styles.memberName}>{m.user.name || m.user.email}</Text>
+                    <View style={styles.rolePill}>
+                      <Text style={styles.roleText}>{m.role}</Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
             </View>
 
-            <View style={styles.section}>
-              <View style={styles.expenseHeader}>
-                <Text style={styles.sectionTitle}>Expenses</Text>
-                <TouchableOpacity style={styles.addExpenseBtn}
-                  onPress={() => navigation.navigate('AddExpense', { group, onDone: load })}>
-                  <Text style={styles.addExpenseBtnText}>+ Add</Text>
-                </TouchableOpacity>
-              </View>
+            <View style={styles.expensesHeader}>
+              <Text style={styles.sectionLabel}>Expenses</Text>
+              <TouchableOpacity
+                style={styles.addExpenseBtn}
+                onPress={() => navigation.navigate('AddExpense', { group, onDone: load })}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.addExpenseBtnText}>+ Add</Text>
+              </TouchableOpacity>
             </View>
           </>
         )}
         data={expenses}
         keyExtractor={e => e.id.toString()}
-        contentContainerStyle={{ paddingBottom: 40 }}
+        contentContainerStyle={{ paddingBottom: TAB_PAD }}
         ListEmptyComponent={
           <View style={styles.emptyBox}>
             <Text style={styles.emptyIcon}>💸</Text>
@@ -190,26 +271,27 @@ export default function GroupDetailScreen({ route, navigation }: any) {
           const total = parseFloat(item.amount);
 
           let shareLabel = '';
-          let shareColor = '#999';
+          let shareColor = C.textSecondary;
           if (iPaid && myShare > 0) {
             const lent = total - myShare;
             shareLabel = lent > 0.005 ? `you lent ${fmt(lent, expCurrency)}` : 'you paid in full';
-            shareColor = '#1aa672';
+            shareColor = C.positive;
           } else if (iPaid) {
             shareLabel = 'you paid in full';
-            shareColor = '#1aa672';
+            shareColor = C.positive;
           } else if (myShare > 0) {
             shareLabel = `you owe ${fmt(myShare, expCurrency)}`;
-            shareColor = '#e53935';
+            shareColor = C.negative;
           }
 
           const convStr = converted(total, expCurrency);
 
           return (
             <TouchableOpacity
-              style={styles.expenseRow}
-              onLongPress={() => handleDeleteExpense(item.id, item.description)}
+              style={[styles.expenseRow, S.shadowSm]}
+              onLongPress={() => handleExpenseActions(item)}
               delayLongPress={400}
+              activeOpacity={0.8}
             >
               <View style={styles.expenseIcon}>
                 <Text style={styles.expenseIconText}>{expCurrency[0]}</Text>
@@ -231,11 +313,28 @@ export default function GroupDetailScreen({ route, navigation }: any) {
 
       <BottomModal visible={addModal} onClose={() => setAddModal(false)}>
         <Text style={styles.modalTitle}>Add Member</Text>
-        <TextInput style={styles.input} placeholder="Email address" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoFocus />
-        <TouchableOpacity style={styles.modalBtn} onPress={handleAddMember} disabled={adding}>
-          {adding ? <ActivityIndicator color="#fff" /> : <Text style={styles.modalBtnText}>Add</Text>}
+        <TextInput
+          style={styles.input}
+          placeholder="Email address"
+          placeholderTextColor={C.placeholder}
+          value={email}
+          onChangeText={setEmail}
+          keyboardType="email-address"
+          autoCapitalize="none"
+          autoFocus
+        />
+        <TouchableOpacity
+          style={styles.modalBtn}
+          onPress={handleAddMember}
+          disabled={adding}
+          activeOpacity={0.85}
+        >
+          {adding
+            ? <ActivityIndicator color="#fff" />
+            : <Text style={styles.modalBtnText}>Add Member</Text>
+          }
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => setAddModal(false)}>
+        <TouchableOpacity onPress={() => setAddModal(false)} style={styles.cancelWrap}>
           <Text style={styles.cancel}>Cancel</Text>
         </TouchableOpacity>
       </BottomModal>
@@ -244,45 +343,164 @@ export default function GroupDetailScreen({ route, navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5' },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, paddingTop: 60, backgroundColor: '#fff' },
-  back: { fontSize: 17, color: '#1aa672' },
-  headerCenter: { alignItems: 'center' },
-  title: { fontSize: 18, fontWeight: '700' },
-  headerSub: { fontSize: 12, color: '#999', marginTop: 2 },
-  addBtn: { fontSize: 14, color: '#1aa672', fontWeight: '600' },
-  section: { backgroundColor: '#fff', marginTop: 12, padding: 16 },
-  sectionTitle: { fontSize: 15, fontWeight: '700', marginBottom: 10 },
-  settlementRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
-  settlementText: { fontSize: 14, color: '#333' },
-  settlementAmount: { fontSize: 14, fontWeight: '700', color: '#1aa672' },
-  memberRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8 },
-  avatarMargin: { marginRight: 10 },
-  memberName: { flex: 1, fontSize: 15 },
-  memberRole: { fontSize: 12, color: '#999', textTransform: 'capitalize' },
-  expenseHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  addExpenseBtn: { backgroundColor: '#1aa672', borderRadius: 16, paddingHorizontal: 14, paddingVertical: 6 },
-  addExpenseBtnText: { color: '#fff', fontWeight: '600', fontSize: 13 },
+  container: { flex: 1, backgroundColor: C.bg },
   centerBox: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
-  errorIcon: { fontSize: 48, marginBottom: 12 },
-  errorText: { fontSize: 17, fontWeight: '600', color: '#333', marginBottom: 20 },
-  retryBtn: { backgroundColor: '#1aa672', borderRadius: 10, paddingHorizontal: 28, paddingVertical: 12 },
-  retryBtnText: { color: '#fff', fontWeight: '600', fontSize: 15 },
-  emptyBox: { alignItems: 'center', paddingVertical: 32 },
-  emptyIcon: { fontSize: 40, marginBottom: 8 },
-  emptyTitle: { fontSize: 17, fontWeight: '600', marginBottom: 4 },
-  emptySub: { fontSize: 13, color: '#999', textAlign: 'center' },
-  expenseRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f5f5f5' },
-  expenseIcon: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#fff9e6', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
-  expenseIconText: { fontSize: 15, fontWeight: '700', color: '#f5a623' },
+
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 60,
+    paddingBottom: 12,
+    backgroundColor: C.bg,
+  },
+  headerCenter: { alignItems: 'center', gap: 4 },
+  back: { fontSize: 17, color: C.accent, fontWeight: '500', width: 80 },
+  title: { fontSize: 17, fontWeight: '700', color: C.text, letterSpacing: -0.2 },
+  curBadge: {
+    backgroundColor: C.accentSoft,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  curBadgeText: { fontSize: 11, color: C.accent, fontWeight: '700', letterSpacing: 0.2 },
+  addMemberBtn: { fontSize: 14, color: C.accent, fontWeight: '600', width: 80, textAlign: 'right' },
+
+  section: { paddingHorizontal: 16, marginTop: 20 },
+  sectionLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: C.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 8,
+    marginLeft: 4,
+  },
+  card: {
+    backgroundColor: C.bgElevated,
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
+
+  settlementRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  settlementBorder: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: C.separator,
+  },
+  settlementLeft: { flexDirection: 'row', alignItems: 'center', flex: 1, gap: 6 },
+  settlementArrow: { fontSize: 14, color: C.textSecondary },
+  settlementNames: { flex: 1, marginLeft: 4 },
+  settlementText: { fontSize: 13, fontWeight: '600', color: C.text },
+  settlementTextMuted: { fontWeight: '400', color: C.textSecondary },
+  settlementAmount: { fontSize: 14, fontWeight: '700', color: C.accent },
+
+  memberRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  memberBorder: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: C.separator,
+  },
+  memberName: { flex: 1, fontSize: 15, fontWeight: '600', color: C.text },
+  rolePill: {
+    backgroundColor: C.inputFill,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  roleText: { fontSize: 11, color: C.textSecondary, fontWeight: '600', textTransform: 'capitalize' },
+
+  expensesHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    marginTop: 20,
+    marginBottom: 8,
+  },
+  addExpenseBtn: {
+    backgroundColor: C.accent,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    shadowColor: C.accent,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  addExpenseBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
+
+  expenseRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: C.bgElevated,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  expenseIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,159,10,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  expenseIconText: { fontSize: 16, fontWeight: '800', color: '#FF9F0A' },
   expenseInfo: { flex: 1 },
-  expenseDesc: { fontSize: 15, fontWeight: '600' },
-  expenseSub: { fontSize: 12, color: '#999', marginTop: 2 },
+  expenseDesc: { fontSize: 15, fontWeight: '700', color: C.text },
+  expenseSub: { fontSize: 12, color: C.textSecondary, marginTop: 2 },
   expenseShare: { fontSize: 12, fontWeight: '700', marginTop: 3 },
-  deleteHint: { fontSize: 20, color: '#ccc', paddingLeft: 8 },
-  modalTitle: { fontSize: 20, fontWeight: '700', marginBottom: 16 },
-  input: { borderWidth: 1, borderColor: '#ddd', borderRadius: 10, padding: 14, fontSize: 16, marginBottom: 14 },
-  modalBtn: { backgroundColor: '#1aa672', borderRadius: 10, padding: 16, alignItems: 'center', marginBottom: 10 },
-  modalBtnText: { color: '#fff', fontWeight: '600', fontSize: 16 },
-  cancel: { textAlign: 'center', color: '#999', fontSize: 15 },
+  deleteHint: { fontSize: 20, color: C.textMuted, paddingLeft: 8 },
+
+  emptyBox: { alignItems: 'center', paddingVertical: 40, paddingHorizontal: 24 },
+  emptyIcon: { fontSize: 48, marginBottom: 12 },
+  emptyTitle: { fontSize: 18, fontWeight: '700', color: C.text, marginBottom: 6 },
+  emptySub: { fontSize: 13, color: C.textSecondary, textAlign: 'center', lineHeight: 18 },
+
+  errorIcon: { fontSize: 48, marginBottom: 12 },
+  errorText: { fontSize: 17, fontWeight: '600', color: C.text, marginBottom: 20 },
+  retryBtn: { backgroundColor: C.accent, borderRadius: 16, paddingHorizontal: 28, paddingVertical: 14 },
+  retryBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    marginBottom: 16,
+    color: C.text,
+    letterSpacing: -0.3,
+  },
+  input: {
+    backgroundColor: C.inputFill,
+    borderWidth: 0,
+    borderRadius: 14,
+    padding: 14,
+    fontSize: 16,
+    marginBottom: 14,
+    color: C.text,
+  },
+  modalBtn: {
+    backgroundColor: C.accent,
+    borderRadius: 16,
+    padding: 16,
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  modalBtnText: { color: '#fff', fontWeight: '700', fontSize: 16 },
+  cancelWrap: { paddingVertical: 8 },
+  cancel: { textAlign: 'center', color: C.textSecondary, fontSize: 15, fontWeight: '600' },
 });

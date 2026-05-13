@@ -94,6 +94,37 @@ class ExpenseSerializer(serializers.ModelSerializer):
 
         return expense
 
+    def update(self, instance, validated_data):
+        participant_ids = validated_data.pop('participant_ids', None)
+        exact_amounts = validated_data.pop('exact_amounts', {})
+        percentages = validated_data.pop('percentages', {})
+
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+
+        if participant_ids is not None:
+            instance.splits.all().delete()
+            split_type = instance.split_type
+            amount = instance.amount
+            participants = User.objects.filter(id__in=participant_ids)
+
+            if split_type == 'equal':
+                split_amount = round(float(amount) / len(participants), 2)
+                for user in participants:
+                    ExpenseSplit.objects.create(expense=instance, user=user, amount=split_amount)
+            elif split_type == 'exact':
+                for user in participants:
+                    split_amount = exact_amounts.get(str(user.id), 0)
+                    ExpenseSplit.objects.create(expense=instance, user=user, amount=split_amount)
+            elif split_type == 'percentage':
+                for user in participants:
+                    pct = float(percentages.get(str(user.id), 0))
+                    split_amount = round(float(amount) * pct / 100, 2)
+                    ExpenseSplit.objects.create(expense=instance, user=user, amount=split_amount)
+
+        return instance
+
 
 class SettlementSerializer(serializers.ModelSerializer):
     payer = UserBriefSerializer(read_only=True)

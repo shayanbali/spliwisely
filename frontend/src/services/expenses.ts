@@ -18,6 +18,17 @@ export const createExpense = (data: {
 
 export const deleteExpense = (id: number) => api.delete(`/expenses/${id}/`);
 
+export const updateExpense = (id: number, data: {
+  description?: string;
+  amount?: number;
+  currency?: string;
+  paid_by_id?: number;
+  split_type?: 'equal' | 'exact' | 'percentage';
+  participant_ids?: number[];
+  exact_amounts?: Record<string, number>;
+  percentages?: Record<string, number>;
+}) => api.patch<Expense>(`/expenses/${id}/`, data).then(r => r.data);
+
 export const getBalances = (groupId?: number) =>
   api.get('/expenses/balances/', { params: groupId ? { group: groupId } : {} }).then(r => r.data);
 

@@ -1,15 +1,21 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, Alert, ScrollView } from 'react-native';
+import {
+  View, Text, StyleSheet, TextInput, TouchableOpacity,
+  ActivityIndicator, Alert, ScrollView,
+} from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../context/AuthContext';
 import Avatar from '../components/common/Avatar';
 import api from '../services/api';
 import { CURRENCIES, symbolOf } from '../utils/currency';
+import { C, S, TAB_PAD } from '../theme';
 
 export default function ProfileScreen() {
   const { user, setUser, logout } = useAuth();
   const [name, setName] = useState(user?.name ?? '');
-  const [preferredCurrency, setPreferredCurrency] = useState(user?.preferred_currency ?? 'USD');
+  const [preferredCurrency, setPreferredCurrency] = useState(
+    user?.preferred_currency ?? 'USD',
+  );
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [savingCurrency, setSavingCurrency] = useState(false);
@@ -18,7 +24,10 @@ export default function ProfileScreen() {
   async function handlePickAvatar() {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert('Permission needed', 'Allow access to your photo library to set a profile picture.');
+      Alert.alert(
+        'Permission needed',
+        'Allow access to your photo library to set a profile picture.',
+      );
       return;
     }
 
@@ -80,14 +89,21 @@ export default function ProfileScreen() {
     }
   }
 
-  return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Profile</Text>
-      </View>
+  const nameDirty = name.trim().length > 0 && name !== user?.name;
 
-      <View style={styles.avatarSection}>
-        <TouchableOpacity onPress={handlePickAvatar} disabled={uploadingAvatar}>
+  return (
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={false}
+    >
+      {/* Top hero section */}
+      <View style={styles.hero}>
+        <TouchableOpacity
+          onPress={handlePickAvatar}
+          disabled={uploadingAvatar}
+          activeOpacity={0.85}
+        >
           <Avatar
             name={user?.name}
             email={user?.email}
@@ -102,62 +118,94 @@ export default function ProfileScreen() {
             }
           </View>
         </TouchableOpacity>
-        <Text style={styles.avatarHint}>Tap to change photo</Text>
-        <Text style={styles.email}>{user?.email}</Text>
+        <Text style={styles.heroName}>{user?.name || user?.email}</Text>
+        <Text style={styles.heroEmail}>{user?.email}</Text>
       </View>
 
-      <View style={styles.card}>
-        <Text style={styles.label}>Display Name</Text>
-        <TextInput
-          style={styles.input}
-          value={name}
-          onChangeText={v => { setName(v); setSaved(false); }}
-          placeholder="Your name"
-          autoCapitalize="words"
-        />
+      {/* Display name card */}
+      <Text style={styles.sectionLabel}>Display Name</Text>
+      <View style={[styles.card, S.shadowSm]}>
+        <View style={styles.cardInner}>
+          <TextInput
+            style={styles.input}
+            value={name}
+            onChangeText={v => { setName(v); setSaved(false); }}
+            placeholder="Your name"
+            placeholderTextColor={C.placeholder}
+            autoCapitalize="words"
+          />
 
+          <TouchableOpacity
+            style={[styles.saveBtn, !nameDirty && styles.saveBtnDisabled]}
+            onPress={handleSave}
+            disabled={saving || !nameDirty}
+            activeOpacity={0.85}
+          >
+            {saving
+              ? <ActivityIndicator color="#fff" />
+              : (
+                <Text style={styles.saveBtnText}>
+                  {saved ? '✓ Saved' : 'Save Changes'}
+                </Text>
+              )
+            }
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Preferred currency card */}
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionLabelInline}>Preferred Currency</Text>
+        {savingCurrency && <ActivityIndicator size="small" color={C.accent} />}
+      </View>
+      <View style={[styles.card, S.shadowSm]}>
+        <View style={styles.cardInner}>
+          <Text style={styles.currencyHint}>
+            All balances and totals will be shown in this currency.
+          </Text>
+          <View style={styles.currencyGrid}>
+            {CURRENCIES.map(c => {
+              const active = preferredCurrency === c;
+              return (
+                <TouchableOpacity
+                  key={c}
+                  style={[styles.currencyChip, active && styles.currencyChipActive]}
+                  onPress={() => handleSaveCurrency(c)}
+                  activeOpacity={0.85}
+                >
+                  <Text
+                    style={[
+                      styles.currencyChipSym,
+                      active && styles.currencyChipTextActive,
+                    ]}
+                  >
+                    {symbolOf(c).trim()}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.currencyChipCode,
+                      active && styles.currencyChipTextActive,
+                    ]}
+                  >
+                    {c}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+      </View>
+
+      {/* Account card */}
+      <Text style={styles.sectionLabel}>Account</Text>
+      <View style={[styles.card, S.shadowSm]}>
         <TouchableOpacity
-          style={[styles.saveBtn, (!name.trim() || name === user?.name) && styles.saveBtnDisabled]}
-          onPress={handleSave}
-          disabled={saving || !name.trim() || name === user?.name}
+          style={styles.logoutRow}
+          onPress={logout}
+          activeOpacity={0.7}
         >
-          {saving
-            ? <ActivityIndicator color="#fff" />
-            : <Text style={styles.saveBtnText}>{saved ? '✓ Saved' : 'Save Changes'}</Text>
-          }
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.card}>
-        <View style={styles.currencyHeader}>
-          <Text style={styles.label}>Preferred Currency</Text>
-          {savingCurrency && <ActivityIndicator size="small" color="#1aa672" />}
-        </View>
-        <Text style={styles.currencyHint}>
-          All balances and totals will be shown in this currency.
-        </Text>
-        <View style={styles.currencyGrid}>
-          {CURRENCIES.map(c => (
-            <TouchableOpacity
-              key={c}
-              style={[styles.currencyChip, preferredCurrency === c && styles.currencyChipActive]}
-              onPress={() => handleSaveCurrency(c)}
-            >
-              <Text style={[styles.currencyChipSym, preferredCurrency === c && styles.currencyChipTextActive]}>
-                {symbolOf(c)}
-              </Text>
-              <Text style={[styles.currencyChipCode, preferredCurrency === c && styles.currencyChipTextActive]}>
-                {c}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
-
-      <View style={styles.card}>
-        <Text style={styles.label}>Account</Text>
-        <TouchableOpacity style={styles.logoutRow} onPress={logout}>
           <Text style={styles.logoutText}>Log out</Text>
+          <Text style={styles.chevron}>›</Text>
         </TouchableOpacity>
       </View>
     </ScrollView>
@@ -165,35 +213,134 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5' },
-  content: { paddingBottom: 40 },
-  header: { padding: 20, paddingTop: 60, backgroundColor: '#fff' },
-  headerTitle: { fontSize: 24, fontWeight: '800' },
-  avatarSection: { alignItems: 'center', paddingVertical: 28, backgroundColor: '#fff', marginBottom: 12 },
+  container: { flex: 1, backgroundColor: C.bg },
+  content: { paddingBottom: TAB_PAD, paddingTop: 60 },
+
+  hero: {
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: 32,
+  },
   cameraOverlay: {
-    position: 'absolute', bottom: 0, right: 0,
-    width: 28, height: 28, borderRadius: 14,
-    backgroundColor: '#1aa672',
-    justifyContent: 'center', alignItems: 'center',
-    borderWidth: 2, borderColor: '#fff',
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: C.accent,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: C.bg,
   },
   cameraIcon: { fontSize: 13 },
-  avatarHint: { fontSize: 12, color: '#1aa672', marginTop: 8, fontWeight: '600' },
-  email: { fontSize: 14, color: '#999', marginTop: 4 },
-  card: { backgroundColor: '#fff', marginHorizontal: 16, marginBottom: 12, borderRadius: 14, padding: 18 },
-  label: { fontSize: 13, fontWeight: '600', color: '#888', marginBottom: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
-  input: { borderWidth: 1, borderColor: '#e0e0e0', borderRadius: 10, padding: 14, fontSize: 16, marginBottom: 14, backgroundColor: '#fafafa' },
-  saveBtn: { backgroundColor: '#1aa672', borderRadius: 10, padding: 15, alignItems: 'center' },
-  saveBtnDisabled: { backgroundColor: '#b2dfdb' },
+  heroName: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: C.text,
+    marginTop: 16,
+    letterSpacing: -0.3,
+  },
+  heroEmail: {
+    fontSize: 14,
+    color: C.textSecondary,
+    marginTop: 4,
+  },
+
+  sectionLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: C.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 8,
+    marginLeft: 20,
+    marginTop: 8,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginRight: 20,
+    marginTop: 20,
+  },
+  sectionLabelInline: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: C.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 8,
+    marginLeft: 20,
+  },
+
+  card: {
+    marginHorizontal: 16,
+    marginBottom: 8,
+    backgroundColor: C.bgElevated,
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
+  cardInner: {
+    padding: 18,
+  },
+
+  input: {
+    backgroundColor: C.inputFill,
+    borderWidth: 0,
+    borderRadius: 14,
+    padding: 14,
+    fontSize: 16,
+    marginBottom: 14,
+    color: C.text,
+  },
+  saveBtn: {
+    backgroundColor: C.accent,
+    borderRadius: 16,
+    padding: 15,
+    alignItems: 'center',
+  },
+  saveBtnDisabled: {
+    backgroundColor: C.inputFillStrong,
+  },
   saveBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
-  logoutRow: { paddingVertical: 8 },
-  logoutText: { fontSize: 16, color: '#e53935', fontWeight: '600' },
-  currencyHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  currencyHint: { fontSize: 13, color: '#999', marginBottom: 14, marginTop: -4 },
-  currencyGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  currencyChip: { flexDirection: 'row', alignItems: 'center', borderWidth: 1.5, borderColor: '#e0e0e0', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, gap: 4 },
-  currencyChipActive: { borderColor: '#1aa672', backgroundColor: '#e8f5e9' },
-  currencyChipSym: { fontSize: 15, fontWeight: '700', color: '#555' },
-  currencyChipCode: { fontSize: 13, color: '#555' },
-  currencyChipTextActive: { color: '#1aa672' },
+
+  currencyHint: {
+    fontSize: 13,
+    color: C.textSecondary,
+    marginBottom: 14,
+  },
+  currencyGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  currencyChip: {
+    width: '31%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: C.inputFill,
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 12,
+    gap: 6,
+  },
+  currencyChipActive: {
+    backgroundColor: C.accent,
+  },
+  currencyChipSym: { fontSize: 15, fontWeight: '700', color: C.text },
+  currencyChipCode: { fontSize: 13, color: C.text, fontWeight: '600' },
+  currencyChipTextActive: { color: '#fff' },
+
+  logoutRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 18,
+    paddingHorizontal: 18,
+  },
+  logoutText: { fontSize: 17, color: C.negative, fontWeight: '600' },
+  chevron: { fontSize: 22, color: C.chevron, fontWeight: '300' },
 });
