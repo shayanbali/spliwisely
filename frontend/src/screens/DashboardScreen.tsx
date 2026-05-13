@@ -1,7 +1,7 @@
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import {
   View, Text, FlatList, StyleSheet, TouchableOpacity,
-  ActivityIndicator, RefreshControl,
+  ActivityIndicator, RefreshControl, Animated, Easing,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -13,6 +13,89 @@ import { useTheme } from '../context/ThemeContext';
 import { getBalances } from '../services/expenses';
 import { fmt } from '../utils/currency';
 import { S, TAB_PAD, ThemeColors } from '../theme';
+
+const ICON_SIZE = 80;
+
+function SettledUpIcon({ C, trigger }: { C: ThemeColors; trigger: number }) {
+  const entrance  = useRef(new Animated.Value(0)).current;
+  const breathe   = useRef(new Animated.Value(1)).current;
+  const r1Scale   = useRef(new Animated.Value(1)).current;
+  const r1Opacity = useRef(new Animated.Value(0)).current;
+  const r2Scale   = useRef(new Animated.Value(1)).current;
+  const r2Opacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // reset
+    entrance.setValue(0);
+    r1Scale.setValue(1); r1Opacity.setValue(0);
+    r2Scale.setValue(1); r2Opacity.setValue(0);
+    breathe.setValue(1);
+
+    // spring entrance
+    Animated.spring(entrance, {
+      toValue: 1, useNativeDriver: true, speed: 10, bounciness: 18,
+    }).start();
+
+    // ripple factory
+    const ripple = (sc: Animated.Value, op: Animated.Value, delay: number) =>
+      Animated.loop(Animated.sequence([
+        Animated.delay(delay),
+        Animated.parallel([
+          Animated.timing(sc, { toValue: 2.6, duration: 1800, useNativeDriver: true, easing: Easing.out(Easing.quad) }),
+          Animated.sequence([
+            Animated.timing(op, { toValue: 0.28, duration: 150, useNativeDriver: true }),
+            Animated.timing(op, { toValue: 0, duration: 1650, useNativeDriver: true }),
+          ]),
+        ]),
+        Animated.parallel([
+          Animated.timing(sc, { toValue: 1, duration: 0, useNativeDriver: true }),
+          Animated.timing(op, { toValue: 0, duration: 0, useNativeDriver: true }),
+        ]),
+      ]));
+
+    const breatheLoop = Animated.loop(Animated.sequence([
+      Animated.timing(breathe, { toValue: 1.07, duration: 1500, useNativeDriver: true, easing: Easing.inOut(Easing.sin) }),
+      Animated.timing(breathe, { toValue: 1, duration: 1500, useNativeDriver: true, easing: Easing.inOut(Easing.sin) }),
+    ]));
+
+    const r1 = ripple(r1Scale, r1Opacity, 0);
+    const r2 = ripple(r2Scale, r2Opacity, 950);
+    r1.start(); r2.start(); breatheLoop.start();
+
+    const timer = setTimeout(() => {
+      r1.stop(); r2.stop(); breatheLoop.stop();
+      r1Opacity.setValue(0);
+      r2Opacity.setValue(0);
+      Animated.timing(breathe, { toValue: 1, duration: 300, useNativeDriver: true }).start();
+    }, 1500);
+
+    return () => { clearTimeout(timer); r1.stop(); r2.stop(); breatheLoop.stop(); };
+  }, [trigger]);
+
+  const ringStyle = (sc: Animated.Value, op: Animated.Value) => ({
+    position: 'absolute' as const,
+    width: ICON_SIZE, height: ICON_SIZE, borderRadius: ICON_SIZE / 2,
+    backgroundColor: C.accent,
+    opacity: op, transform: [{ scale: sc }],
+  });
+
+  return (
+    <View style={{ width: ICON_SIZE, height: ICON_SIZE, alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
+      <Animated.View style={ringStyle(r1Scale, r1Opacity)} />
+      <Animated.View style={ringStyle(r2Scale, r2Opacity)} />
+      <Animated.View style={{ transform: [{ scale: entrance }] }}>
+        <Animated.View style={{
+          width: ICON_SIZE, height: ICON_SIZE, borderRadius: ICON_SIZE / 2,
+          backgroundColor: C.accentSoft,
+          justifyContent: 'center', alignItems: 'center',
+          transform: [{ scale: breathe }],
+        }}>
+          <Ionicons name="checkmark-circle" size={42} color={C.accent} />
+        </Animated.View>
+      </Animated.View>
+    </View>
+  );
+}
 
 function greetingFor(date = new Date()) {
   const h = date.getHours();
@@ -30,6 +113,7 @@ export default function DashboardScreen({ navigation }: any) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(false);
+  const [focusTick, setFocusTick] = useState(0);
 
   const totalBalance = balances.reduce((sum, b) => sum + parseFloat(b.amount), 0);
 
@@ -46,7 +130,10 @@ export default function DashboardScreen({ navigation }: any) {
     }
   }
 
-  useFocusEffect(useCallback(() => { load(); }, []));
+  useFocusEffect(useCallback(() => {
+    load();
+    setFocusTick(t => t + 1);
+  }, []));
 
   const firstName = (user?.name || user?.email || '').split(' ')[0].split('@')[0];
   const greet = `${greetingFor()}, ${firstName}!`;
@@ -123,9 +210,7 @@ export default function DashboardScreen({ navigation }: any) {
 
             {balances.length === 0 && (
               <View style={styles.emptyBox}>
-                <View style={styles.emptyIconCircle}>
-                  <Ionicons name="checkmark-circle-outline" size={36} color={C.accent} />
-                </View>
+                <SettledUpIcon C={C} trigger={focusTick} />
                 <Text style={styles.emptyTitle}>All settled up!</Text>
                 <Text style={styles.emptySub}>
                   Add expenses in a group to see who owes what.
@@ -240,15 +325,6 @@ function makeStyles(C: ThemeColors) {
       marginLeft: 20,
     },
 
-    emptyIconCircle: {
-      width: 72,
-      height: 72,
-      borderRadius: 36,
-      backgroundColor: C.accentSoft,
-      justifyContent: 'center',
-      alignItems: 'center',
-      marginBottom: 16,
-    },
     emptyBox: {
       alignItems: 'center',
       paddingHorizontal: 24,
