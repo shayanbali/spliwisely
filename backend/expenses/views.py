@@ -4,11 +4,14 @@ from rest_framework.response import Response
 from django.db.models import Q
 from decimal import Decimal
 from collections import defaultdict
+from datetime import timedelta
 from django.contrib.auth import get_user_model
 from groups.serializers import UserBriefSerializer
 from groups.models import Group
-from .models import Expense, ExpenseSplit, Settlement, RecurringExpense
+from groups.models import GroupMember
+from .models import Expense, ExpenseSplit, ExpenseApproval, Settlement, RecurringExpense
 from .serializers import ExpenseSerializer, SettlementSerializer, RecurringExpenseSerializer
+from users.notifications import send_push
 from .balance_engine import compute_net_balances, simplify_debts
 from .exchange_rates import get_rates, convert
 
@@ -22,15 +25,28 @@ class ExpenseListCreateView(generics.ListCreateAPIView):
     def get_queryset(self):
         group_id = self.request.query_params.get('group')
         if group_id:
-            # Show all expenses in the group to any group member
             qs = Expense.objects.filter(
                 group_id=group_id,
                 group__members__user=self.request.user,
             ).distinct()
         else:
-            # Global view: only expenses the user participates in
             qs = Expense.objects.filter(splits__user=self.request.user).distinct()
-        return qs.select_related('paid_by', 'group').prefetch_related('splits__user')
+        return qs.select_related('paid_by', 'group').prefetch_related('splits__user', 'approvals__user')
+
+    def perform_create(self, serializer):
+        group_id = self.request.data.get('group')
+        amount = float(self.request.data.get('amount', 0))
+        initial_status = 'approved'
+        try:
+            group = Group.objects.get(pk=group_id)
+            threshold = float(group.approval_threshold)
+            if threshold > 0 and amount >= threshold:
+                initial_status = 'pending'
+        except (Group.DoesNotExist, TypeError, ValueError):
+            pass
+        expense = serializer.save(created_by=self.request.user, status=initial_status)
+        if initial_status == 'pending':
+            _notify_approval_needed(expense)
 
 
 class ExpenseDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -40,7 +56,7 @@ class ExpenseDetailView(generics.RetrieveUpdateDestroyAPIView):
     def get_queryset(self):
         return Expense.objects.filter(
             group__members__user=self.request.user
-        ).select_related('paid_by', 'group').prefetch_related('splits__user').distinct()
+        ).select_related('paid_by', 'group').prefetch_related('splits__user', 'approvals__user').distinct()
 
 
 class SettlementListCreateView(generics.ListCreateAPIView):
@@ -56,6 +72,11 @@ class SettlementListCreateView(generics.ListCreateAPIView):
         return qs.select_related('payer', 'receiver', 'group')
 
     def perform_create(self, serializer):
+        payer = serializer.validated_data.get('payer') or serializer.validated_data.get('payer_id')
+        receiver = serializer.validated_data.get('receiver') or serializer.validated_data.get('receiver_id')
+        if payer and receiver and payer == receiver:
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError({'detail': 'Payer and receiver cannot be the same user.'})
         serializer.save()
 
 
@@ -83,7 +104,7 @@ class BalancesView(APIView):
         balances = {}
 
         expenses_qs = Expense.objects.filter(
-            splits__user=user
+            splits__user=user, status='approved'
         ).distinct().select_related('paid_by').prefetch_related('splits__user')
 
         if group_id:
@@ -107,13 +128,18 @@ class BalancesView(APIView):
             settlements_qs = settlements_qs.filter(group_id=group_id)
 
         for s in settlements_qs:
+            if s.payer_id == s.receiver_id:
+                continue
             converted = Decimal(str(convert(float(s.amount), s.currency, preferred, rates)))
             if s.payer == user:
                 balances[s.receiver_id] = balances.get(s.receiver_id, Decimal('0')) + converted
             else:
                 balances[s.payer_id] = balances.get(s.payer_id, Decimal('0')) - converted
 
-        significant = {uid: amt for uid, amt in balances.items() if abs(amt) >= Decimal('0.01')}
+        significant = {
+            uid: amt for uid, amt in balances.items()
+            if abs(amt) >= Decimal('0.01') and uid != user.id
+        }
         users_map = {u.id: u for u in User.objects.filter(id__in=significant.keys())}
         result = [
             {
@@ -143,7 +169,7 @@ class SimplifiedBalancesView(APIView):
         user_groups = Group.objects.filter(members__user=request.user)
 
         expenses_qs = Expense.objects.filter(
-            group__in=user_groups
+            group__in=user_groups, status='approved'
         ).select_related('paid_by').prefetch_related('splits')
         settlements_qs = Settlement.objects.filter(group__in=user_groups)
 
@@ -169,6 +195,8 @@ class SimplifiedBalancesView(APIView):
                     net[paid_by_id] += converted
                     net[split.user_id] -= converted
             for s in settlements_qs:
+                if s.payer_id == s.receiver_id:
+                    continue
                 converted = Decimal(str(convert(float(s.amount), s.currency, preferred, rates)))
                 net[s.receiver_id] -= converted
                 net[s.payer_id] += converted
@@ -186,6 +214,8 @@ class SimplifiedBalancesView(APIView):
                     a, b = min(split.user_id, paid_by_id), max(split.user_id, paid_by_id)
                     pair[(a, b)] += converted if split.user_id == a else -converted
             for s in settlements_qs:
+                if s.payer_id == s.receiver_id:
+                    continue
                 converted = Decimal(str(convert(float(s.amount), s.currency, preferred, rates)))
                 a, b = min(s.payer_id, s.receiver_id), max(s.payer_id, s.receiver_id)
                 pair[(a, b)] += -converted if s.payer_id == a else converted
@@ -444,7 +474,7 @@ class GroupBalancesView(APIView):
 
         for group in groups:
             expenses_qs = Expense.objects.filter(
-                group=group, splits__user=user
+                group=group, splits__user=user, status='approved'
             ).distinct().select_related('paid_by').prefetch_related('splits__user')
 
             settlements_qs = Settlement.objects.filter(
@@ -464,6 +494,8 @@ class GroupBalancesView(APIView):
                         net_balance -= converted
 
             for s in settlements_qs:
+                if s.payer_id == s.receiver_id:
+                    continue
                 converted = Decimal(str(convert(float(s.amount), s.currency, preferred, rates)))
                 if s.payer == user:
                     net_balance += converted
@@ -477,3 +509,220 @@ class GroupBalancesView(APIView):
             })
 
         return Response(result)
+
+
+class AnalyticsView(APIView):
+    """Spending analytics: period totals + category breakdown.
+    Pass ?group=<id> for group-scoped analytics with member spending breakdown.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        period = request.query_params.get('period', 'monthly')
+        group_id = request.query_params.get('group')
+        preferred = user.preferred_currency
+        rates = get_rates()
+
+        if group_id:
+            try:
+                group_obj = Group.objects.get(pk=group_id, members__user=user)
+            except Group.DoesNotExist:
+                return Response({'detail': 'Group not found.'}, status=status.HTTP_404_NOT_FOUND)
+            expenses_qs = (
+                Expense.objects
+                .filter(group=group_obj)
+                .distinct()
+                .select_related('paid_by')
+                .prefetch_related('splits__user')
+                .order_by('created_at')
+            )
+            group_mode = True
+        else:
+            expenses_qs = (
+                Expense.objects
+                .filter(splits__user=user)
+                .distinct()
+                .prefetch_related('splits')
+                .order_by('created_at')
+            )
+            group_mode = False
+
+        period_totals: dict = {}
+        period_order: list = []
+        category_totals: dict = defaultdict(Decimal)
+        member_spending: dict = defaultdict(Decimal)
+
+        for expense in expenses_qs:
+            if group_mode:
+                amount = Decimal(str(convert(float(expense.amount), expense.currency, preferred, rates)))
+                member_spending[expense.paid_by_id] += amount
+            else:
+                user_split = next((s for s in expense.splits.all() if s.user_id == user.id), None)
+                if not user_split:
+                    continue
+                amount = Decimal(str(convert(float(user_split.amount), expense.currency, preferred, rates)))
+
+            dt = expense.created_at
+            if period == 'monthly':
+                sort_key = dt.strftime('%Y-%m')
+                label = dt.strftime('%b %Y')
+            else:
+                week_start = dt.date() - timedelta(days=dt.weekday())
+                sort_key = week_start.strftime('%Y-%m-%d')
+                label = week_start.strftime('%b %d')
+
+            if sort_key not in period_totals:
+                period_totals[sort_key] = {'label': label, 'total': Decimal('0')}
+                period_order.append(sort_key)
+            period_totals[sort_key]['total'] += amount
+
+            category = expense.get_category_display()
+            category_totals[category] += amount
+
+        period_order.sort()
+        last_8 = period_order[-8:]
+        periods_result = [
+            {'label': period_totals[k]['label'], 'total': str(round(period_totals[k]['total'], 2))}
+            for k in last_8
+        ]
+
+        cat_sorted = sorted(category_totals.items(), key=lambda x: x[1], reverse=True)
+        top_cats = cat_sorted[:6]
+        other_total = sum(v for _, v in cat_sorted[6:])
+        if other_total > Decimal('0.01'):
+            top_cats.append(('Other', other_total))
+        grand_total = sum(v for _, v in top_cats) or Decimal('1')
+        categories_result = [
+            {
+                'label': k,
+                'total': str(round(v, 2)),
+                'percentage': round(float(v / grand_total * 100), 1),
+            }
+            for k, v in top_cats
+        ]
+
+        current_total = period_totals[last_8[-1]]['total'] if last_8 else Decimal('0')
+        previous_total = period_totals[last_8[-2]]['total'] if len(last_8) >= 2 else Decimal('0')
+        change_pct = None
+        if previous_total > 0:
+            change_pct = round(float((current_total - previous_total) / previous_total * 100), 1)
+
+        response_data = {
+            'periods': periods_result,
+            'categories': categories_result,
+            'current_total': str(round(current_total, 2)),
+            'previous_total': str(round(previous_total, 2)),
+            'change_pct': change_pct,
+            'currency': preferred,
+        }
+
+        if group_mode and member_spending:
+            total_paid = sum(member_spending.values()) or Decimal('1')
+            users_map = {u.id: u for u in User.objects.filter(id__in=member_spending.keys())}
+            response_data['member_spending'] = [
+                {
+                    'user': UserBriefSerializer(users_map[uid], context={'request': request}).data,
+                    'amount': str(round(amt, 2)),
+                    'percentage': round(float(amt / total_paid * 100), 1),
+                }
+                for uid, amt in sorted(member_spending.items(), key=lambda x: x[1], reverse=True)
+                if uid in users_map
+            ]
+
+        return Response(response_data)
+
+
+# ─── Approval helpers ────────────────────────────────────────────────────────
+
+def _notify_approval_needed(expense):
+    """Push notification to all group members except the creator."""
+    members = GroupMember.objects.filter(group=expense.group).exclude(
+        user=expense.created_by
+    ).select_related('user')
+    recipients = [m.user for m in members]
+    if not recipients:
+        return
+    creator = expense.created_by
+    name = creator.name or creator.email
+    send_push(
+        users=recipients,
+        title='Approval needed',
+        body=f'{name} added "{expense.description}" ({expense.currency} {expense.amount}) — tap to approve.',
+        data={'type': 'approval_request', 'expense_id': expense.id, 'group_id': expense.group_id},
+    )
+
+
+def _resolve_approval(expense):
+    """Check votes and auto-approve/reject the expense."""
+    eligible_ids = set(
+        GroupMember.objects.filter(group=expense.group)
+        .exclude(user_id=expense.created_by_id)
+        .values_list('user_id', flat=True)
+    )
+    if not eligible_ids:
+        expense.status = 'approved'
+        expense.save(update_fields=['status'])
+        return
+
+    votes = list(ExpenseApproval.objects.filter(expense=expense))
+    rejected = any(not v.approved for v in votes)
+    if rejected:
+        expense.status = 'rejected'
+        expense.save(update_fields=['status'])
+        # Notify creator
+        send_push(
+            users=[expense.created_by],
+            title='Expense rejected',
+            body=f'"{expense.description}" was rejected by a group member.',
+            data={'type': 'approval_rejected', 'expense_id': expense.id, 'group_id': expense.group_id},
+        )
+        return
+
+    approved_ids = {v.user_id for v in votes if v.approved}
+    # Majority rule: more than half of eligible members
+    if len(approved_ids) > len(eligible_ids) / 2:
+        expense.status = 'approved'
+        expense.save(update_fields=['status'])
+        members = GroupMember.objects.filter(group=expense.group).select_related('user')
+        send_push(
+            users=[m.user for m in members],
+            title='Expense approved',
+            body=f'"{expense.description}" has been approved.',
+            data={'type': 'approval_approved', 'expense_id': expense.id, 'group_id': expense.group_id},
+        )
+
+
+class ExpenseVoteView(APIView):
+    """POST /expenses/<pk>/vote/ — body: {approved: true|false}"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, pk):
+        expense = Expense.objects.select_related('group', 'created_by').prefetch_related(
+            'approvals'
+        ).filter(
+            group__members__user=request.user
+        ).filter(pk=pk).distinct().first()
+
+        if not expense:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if expense.status != 'pending':
+            return Response({'detail': 'Expense is not pending approval.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if expense.created_by == request.user:
+            return Response({'detail': 'You cannot vote on your own expense.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        is_member = GroupMember.objects.filter(group=expense.group, user=request.user).exists()
+        if not is_member:
+            return Response({'detail': 'Not a group member.'}, status=status.HTTP_403_FORBIDDEN)
+
+        approved_flag = bool(request.data.get('approved', True))
+        ExpenseApproval.objects.update_or_create(
+            expense=expense, user=request.user,
+            defaults={'approved': approved_flag},
+        )
+
+        _resolve_approval(expense)
+        expense.refresh_from_db()
+        return Response({'status': expense.status})

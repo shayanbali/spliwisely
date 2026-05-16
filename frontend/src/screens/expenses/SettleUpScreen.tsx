@@ -25,14 +25,16 @@ export default function SettleUpScreen({ route, navigation }: any) {
   const [loading, setLoading] = useState(false);
 
   const settleCurrency = transaction.currency ?? preferredCurrency;
+  const iAmPayer = user?.id === transaction.from.id;
   const creditBalance = parseFloat(user?.credits_balance ?? '0');
   const parsedAmount = parseFloat(amount) || 0;
   const hasEnoughCredits = creditBalance >= parsedAmount;
+  const effectiveUseCredits = iAmPayer && useCredits;
 
   async function handleSettle() {
     setLoading(true);
     try {
-      if (useCredits) {
+      if (effectiveUseCredits) {
         if (!hasEnoughCredits) {
           Alert.alert('Insufficient Credits', `You need ${fmt(parsedAmount, settleCurrency)} in credits but only have ${creditBalance.toFixed(2)} SC.`);
           return;
@@ -55,7 +57,7 @@ export default function SettleUpScreen({ route, navigation }: any) {
       }
       onDone?.();
       navigation.goBack();
-      Alert.alert('Done!', useCredits ? 'Settled with Splitwise Credits.' : 'Settlement recorded.');
+      Alert.alert('Done!', effectiveUseCredits ? 'Settled with Splitwise Credits.' : 'Settlement recorded.');
     } catch (e: any) {
       const msg = e?.response?.data?.detail ?? 'Could not record settlement.';
       Alert.alert('Error', msg);
@@ -125,9 +127,9 @@ export default function SettleUpScreen({ route, navigation }: any) {
           </Text>
         </View>
 
-        {/* Pay with Credits toggle */}
-        <Text style={styles.sectionLabel}>Payment Method</Text>
-        <View style={[styles.section, S.shadowSm, { padding: 0, overflow: 'hidden' }]}>
+        {/* Pay with Credits toggle — only shown when current user is the payer */}
+        {iAmPayer && <Text style={styles.sectionLabel}>Payment Method</Text>}
+        {iAmPayer && <View style={[styles.section, S.shadowSm, { padding: 0, overflow: 'hidden' }]}>
           <TouchableOpacity
             style={[styles.payMethodRow, !useCredits && styles.payMethodActive]}
             onPress={() => setUseCredits(false)}
@@ -165,16 +167,16 @@ export default function SettleUpScreen({ route, navigation }: any) {
             </View>
             {useCredits && <Ionicons name="checkmark-circle" size={20} color="#5E5CE6" />}
           </TouchableOpacity>
-        </View>
+        </View>}
 
         <TouchableOpacity
           style={[
             styles.button,
-            useCredits && { backgroundColor: '#5E5CE6', shadowColor: '#5E5CE6' },
-            (loading || (useCredits && !hasEnoughCredits)) && { opacity: 0.6 },
+            effectiveUseCredits && { backgroundColor: '#5E5CE6', shadowColor: '#5E5CE6' },
+            (loading || (effectiveUseCredits && !hasEnoughCredits)) && { opacity: 0.6 },
           ]}
           onPress={handleSettle}
-          disabled={loading || (useCredits && !hasEnoughCredits)}
+          disabled={loading || (effectiveUseCredits && !hasEnoughCredits)}
           activeOpacity={0.85}
         >
           {loading
@@ -182,12 +184,12 @@ export default function SettleUpScreen({ route, navigation }: any) {
             : (
               <>
                 <Ionicons
-                  name={useCredits ? 'wallet' : 'checkmark-circle'}
+                  name={effectiveUseCredits ? 'wallet' : 'checkmark-circle'}
                   size={18}
                   color="#fff"
                 />
                 <Text style={styles.buttonText}>
-                  {useCredits ? 'Pay with Credits' : 'Record Payment'}
+                  {effectiveUseCredits ? 'Pay with Credits' : 'Record Payment'}
                 </Text>
               </>
             )

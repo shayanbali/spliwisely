@@ -8,6 +8,9 @@ from users.notifications import send_push
 def notify_expense_created(sender, instance, created, **kwargs):
     if not created:
         return
+    # Pending expenses notify via ExpenseVoteView / _notify_approval_needed instead
+    if instance.status == 'pending':
+        return
     participants = [s.user for s in instance.splits.select_related('user').all()
                     if s.user != instance.created_by]
     if not participants:

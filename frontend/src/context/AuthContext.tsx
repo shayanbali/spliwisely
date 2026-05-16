@@ -3,14 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 import * as Notifications from 'expo-notifications';
 import api from '../services/api';
 import { registerPushToken, unregisterPushToken } from '../services/notifications';
-
-interface User {
-  id: number;
-  email: string;
-  name: string;
-  avatar?: string | null;
-  preferred_currency?: string;
-}
+import { User } from '../types';
 
 interface AuthContextType {
   user: User | null;
@@ -25,8 +18,8 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const notificationListener = useRef<any>();
-  const responseListener = useRef<any>();
+  const notificationListener = useRef<any>(null);
+  const responseListener = useRef<any>(null);
 
   useEffect(() => {
     loadUser();

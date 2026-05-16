@@ -107,10 +107,22 @@ class Expense(models.Model):
         ('percentage', 'Percentage'),
     ]
 
+    CATEGORY_CHOICES = [
+        ('food',          'Food & Dining'),
+        ('transport',     'Transport'),
+        ('entertainment', 'Entertainment'),
+        ('shopping',      'Shopping'),
+        ('housing',       'Housing & Utilities'),
+        ('health',        'Health & Fitness'),
+        ('travel',        'Travel'),
+        ('other',         'Other'),
+    ]
+
     group = models.ForeignKey(
         Group, on_delete=models.CASCADE, related_name='expenses', null=True, blank=True
     )
     description = models.CharField(max_length=255)
+    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, default='other')
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     paid_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='paid_expenses'
@@ -128,11 +140,33 @@ class Expense(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
         null=True, related_name='created_expenses'
     )
+    STATUS_CHOICES = [
+        ('approved', 'Approved'),
+        ('pending',  'Pending Approval'),
+        ('rejected', 'Rejected'),
+    ]
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='approved')
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return f'{self.description} - {self.amount}'
+
+
+class ExpenseApproval(models.Model):
+    expense = models.ForeignKey(Expense, on_delete=models.CASCADE, related_name='approvals')
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='expense_approvals'
+    )
+    approved = models.BooleanField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('expense', 'user')
+
+    def __str__(self):
+        return f'{self.user} {"✓" if self.approved else "✗"} {self.expense}'
 
 
 class ExpenseSplit(models.Model):

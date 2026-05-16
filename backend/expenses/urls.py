@@ -1,15 +1,16 @@
 from django.urls import path
 from .views import (
-    ExpenseListCreateView, ExpenseDetailView,
+    ExpenseListCreateView, ExpenseDetailView, ExpenseVoteView,
     SettlementListCreateView, BalancesView, SimplifiedBalancesView,
     ActivityFeedView, GroupBalancesView, ExchangeRatesView,
     RecurringExpenseListCreateView, RecurringExpenseDetailView, GenerateRecurringView,
-    ScanReceiptView,
+    ScanReceiptView, AnalyticsView,
 )
 
 urlpatterns = [
     path('', ExpenseListCreateView.as_view(), name='expense-list-create'),
     path('<int:pk>/', ExpenseDetailView.as_view(), name='expense-detail'),
+    path('<int:pk>/vote/', ExpenseVoteView.as_view(), name='expense-vote'),
     path('settlements/', SettlementListCreateView.as_view(), name='settlement-list-create'),
     path('balances/', BalancesView.as_view(), name='balances'),
     path('balances/simplified/', SimplifiedBalancesView.as_view(), name='balances-simplified'),
@@ -20,4 +21,5 @@ urlpatterns = [
     path('recurring/<int:pk>/', RecurringExpenseDetailView.as_view(), name='recurring-detail'),
     path('recurring/generate/', GenerateRecurringView.as_view(), name='recurring-generate'),
     path('scan-receipt/', ScanReceiptView.as_view(), name='scan-receipt'),
+    path('analytics/', AnalyticsView.as_view(), name='analytics'),
 ]

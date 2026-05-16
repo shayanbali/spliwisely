@@ -1,9 +1,43 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from groups.serializers import UserBriefSerializer
-from .models import Expense, ExpenseSplit, Settlement, RecurringExpense
+from .models import Expense, ExpenseSplit, ExpenseApproval, Settlement, RecurringExpense
 
 User = get_user_model()
+
+_CATEGORY_KEYWORDS = [
+    ('food',          ['dinner','lunch','breakfast','food','pizza','burger','restaurant','cafe','coffee',
+                       'sushi','grocery','groceries','meal','eat','brunch','takeout','takeaway','donut',
+                       'bakery','sandwich','taco','curry','noodle','ramen','pasta','kebab','bbq','snack',
+                       'dessert','ice cream','boba','smoothie','juice','tea',
+                       'beer','wine','cocktail','bar','pub','drink','alcohol','whiskey','vodka','gin','shots']),
+    ('travel',        ['flight','plane','airport','hotel','airbnb','hostel','vacation','trip','holiday',
+                       'travel','booking','resort','motel','cruise']),
+    ('transport',     ['uber','lyft','taxi','bus','train','metro','subway','tram','gas','fuel','petrol',
+                       'parking','toll','ride','transit','car','bike','scooter','transport']),
+    ('shopping',      ['shop','shopping','amazon','mall','market','store','clothing','clothes','shoes',
+                       'fashion','retail','ikea','walmart','target','costco','zara','uniqlo','primark',
+                       'phone','apple','google','software','app','subscription','tech','gadget','laptop',
+                       'computer','icloud','microsoft','iphone','android','ipad','device']),
+    ('housing',       ['rent','mortgage','electricity','electric','water','internet','wifi','cable',
+                       'utility','utilities','bill','bills','lease','heating','cooling','ac','broadband',
+                       'council']),
+    ('entertainment', ['netflix','spotify','movie','cinema','film','concert','show','theater','theatre',
+                       'gaming','streaming','hulu','disney','music','event','gig','festival','ticket',
+                       'youtube','twitch','nightclub','club']),
+    ('health',        ['gym','fitness','doctor','hospital','pharmacy','medicine','medical','dental',
+                       'health','workout','yoga','clinic','physio','optician','prescription','therapy',
+                       'haircut','salon','spa','beauty','nails','manicure','pedicure','massage','barber',
+                       'sport','football','basketball','soccer','tennis','golf','swimming','cricket',
+                       'rugby','volleyball','badminton','squash','cycling','running','marathon','bowling']),
+]
+
+def _auto_category(description: str) -> str:
+    lower = description.lower()
+    for cat, keywords in _CATEGORY_KEYWORDS:
+        if any(kw in lower for kw in keywords):
+            return cat
+    return 'other'
 
 
 class ExpenseSplitSerializer(serializers.ModelSerializer):
@@ -14,7 +48,16 @@ class ExpenseSplitSerializer(serializers.ModelSerializer):
         fields = ('id', 'user', 'amount')
 
 
+class ExpenseApprovalSerializer(serializers.ModelSerializer):
+    user = UserBriefSerializer(read_only=True)
+
+    class Meta:
+        model = ExpenseApproval
+        fields = ('id', 'user', 'approved', 'created_at')
+
+
 class ExpenseSerializer(serializers.ModelSerializer):
+    approvals = ExpenseApprovalSerializer(many=True, read_only=True)
     splits = ExpenseSplitSerializer(many=True, read_only=True)
     paid_by = UserBriefSerializer(read_only=True)
     paid_by_id = serializers.PrimaryKeyRelatedField(
@@ -35,9 +78,9 @@ class ExpenseSerializer(serializers.ModelSerializer):
     class Meta:
         model = Expense
         fields = (
-            'id', 'group', 'description', 'notes', 'image', 'receipt_data', 'amount', 'currency',
+            'id', 'group', 'description', 'category', 'notes', 'image', 'receipt_data', 'amount', 'currency',
             'paid_by', 'paid_by_id', 'split_type', 'splits', 'participant_ids', 'exact_amounts',
-            'percentages', 'recurring', 'created_at',
+            'percentages', 'recurring', 'status', 'approvals', 'created_at',
         )
 
     def to_representation(self, instance):
@@ -81,10 +124,9 @@ class ExpenseSerializer(serializers.ModelSerializer):
         split_type = validated_data.get('split_type', 'equal')
         amount = validated_data['amount']
 
-        expense = Expense.objects.create(
-            created_by=self.context['request'].user,
-            **validated_data
-        )
+        validated_data['category'] = _auto_category(validated_data.get('description', ''))
+
+        expense = Expense.objects.create(**validated_data)
 
         participants = User.objects.filter(id__in=participant_ids)
 
@@ -110,6 +152,9 @@ class ExpenseSerializer(serializers.ModelSerializer):
         participant_ids = validated_data.pop('participant_ids', None)
         exact_amounts = validated_data.pop('exact_amounts', {})
         percentages = validated_data.pop('percentages', {})
+
+        if 'description' in validated_data:
+            validated_data['category'] = _auto_category(validated_data['description'])
 
         for attr, value in validated_data.items():
             setattr(instance, attr, value)

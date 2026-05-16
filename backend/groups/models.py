@@ -17,6 +17,7 @@ class Group(models.Model):
     image = models.ImageField(upload_to='group_images/', null=True, blank=True)
     simplify_debts = models.BooleanField(default=True)
     group_type = models.CharField(max_length=20, choices=GROUP_TYPE_CHOICES, default='regular')
+    approval_threshold = models.DecimalField(max_digits=10, decimal_places=2, default=50)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
         null=True, related_name='created_groups'

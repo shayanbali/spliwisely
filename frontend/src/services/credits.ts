@@ -18,7 +18,7 @@ export async function transferCredits(params: {
   return data;
 }
 
-export async function topUpDemo(): Promise<{ balance: string; detail: string }> {
-  const { data } = await api.post('/auth/credits/topup-demo/');
+export async function topUpDemo(amount: number): Promise<{ balance: string; detail: string }> {
+  const { data } = await api.post('/auth/credits/topup-demo/', { amount });
   return data;
 }

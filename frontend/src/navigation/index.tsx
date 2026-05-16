@@ -37,6 +37,7 @@ import SettleUpScreen from '../screens/expenses/SettleUpScreen';
 import ReceiptScanScreen from '../screens/expenses/ReceiptScanScreen';
 import PotPayOutScreen from '../screens/groups/PotPayOutScreen';
 import CreditsScreen from '../screens/CreditsScreen';
+import AnalyticsScreen from '../screens/AnalyticsScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -280,7 +281,8 @@ export default function Navigation() {
               <Stack.Screen name="SettleUp" component={SettleUpScreen} options={modalScreenOptions} />
               <Stack.Screen name="ReceiptScan" component={ReceiptScanScreen} options={modalScreenOptions} />
               <Stack.Screen name="PotPayOut" component={PotPayOutScreen} options={modalScreenOptions} />
-              <Stack.Screen name="Credits" component={CreditsScreen} options={{ animation: 'slide_from_right', animationDuration: 320 }} />
+              <Stack.Screen name="Credits" component={CreditsScreen} options={{ animation: 'slide_from_right', animationDuration: 320, contentStyle: { backgroundColor: 'transparent' } }} />
+              <Stack.Screen name="Analytics" component={AnalyticsScreen} options={{ animation: 'slide_from_right', animationDuration: 320, contentStyle: { backgroundColor: 'transparent' } }} />
             </>
           ) : (
             <>
@@ -338,5 +340,6 @@ const staticStyles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '600',
     letterSpacing: 0.1,
+    textAlign: 'center',
   },
 });

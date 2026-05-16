@@ -441,6 +441,7 @@ export default function EditExpenseScreen({ route, navigation }: any) {
           </TouchableOpacity>
         ))}
       </BottomModal>
+
     </View>
   );
 }

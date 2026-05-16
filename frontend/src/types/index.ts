@@ -2,6 +2,7 @@ export interface User {
   id: number;
   email: string;
   name: string;
+  username: string;
   avatar?: string;
   preferred_currency?: string;
   credits_balance?: string;
@@ -24,6 +25,7 @@ export interface Group {
   image?: string | null;
   simplify_debts: boolean;
   group_type?: 'regular' | 'gaming';
+  approval_threshold?: string;
   members: GroupMember[];
   member_count: number;
   created_at: string;
@@ -66,10 +68,18 @@ export interface RecurringExpense {
   created_at: string;
 }
 
+export interface ExpenseApproval {
+  id: number;
+  user: User;
+  approved: boolean;
+  created_at: string;
+}
+
 export interface Expense {
   id: number;
   group: number;
   description: string;
+  category?: string;
   notes?: string;
   image?: string | null;
   receipt_data?: ReceiptData | null;
@@ -79,6 +89,8 @@ export interface Expense {
   paid_by: User;
   split_type: 'equal' | 'exact' | 'percentage';
   splits: ExpenseSplit[];
+  status: 'approved' | 'pending' | 'rejected';
+  approvals: ExpenseApproval[];
   created_at: string;
 }
 

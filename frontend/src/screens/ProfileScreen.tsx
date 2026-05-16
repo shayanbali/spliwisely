@@ -33,6 +33,9 @@ export default function ProfileScreen({ navigation }: any) {
   const [savingCurrency, setSavingCurrency] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [nameSheetVisible, setNameSheetVisible] = useState(false);
+  const [usernameSheetVisible, setUsernameSheetVisible] = useState(false);
+  const [usernameInput, setUsernameInput] = useState(user?.username ?? '');
+  const [savingUsername, setSavingUsername] = useState(false);
   const [currencyPickerVisible, setCurrencyPickerVisible] = useState(false);
   const [themeSheetVisible, setThemeSheetVisible] = useState(false);
   const [pwSheetVisible, setPwSheetVisible] = useState(false);
@@ -103,6 +106,26 @@ export default function ProfileScreen({ navigation }: any) {
     setNameSheetVisible(true);
   }
 
+  function openUsernameSheet() {
+    setUsernameInput(user?.username ?? '');
+    setUsernameSheetVisible(true);
+  }
+
+  async function handleSaveUsername() {
+    const trimmed = usernameInput.trim().toLowerCase();
+    if (!trimmed || trimmed === user?.username) return;
+    setSavingUsername(true);
+    try {
+      const { data } = await api.patch('/auth/me/', { username: trimmed });
+      setUser(data);
+      setUsernameSheetVisible(false);
+    } catch (e: any) {
+      Alert.alert('Error', e?.response?.data?.username?.[0] ?? 'Could not update username.');
+    } finally {
+      setSavingUsername(false);
+    }
+  }
+
   function openPwSheet() {
     setCurrentPw(''); setNewPw(''); setConfirmPw('');
     setShowCurrentPw(false); setShowNewPw(false); setShowConfirmPw(false);
@@ -137,6 +160,7 @@ export default function ProfileScreen({ navigation }: any) {
   }
 
   const nameDirty = name.trim().length > 0 && name.trim() !== user?.name;
+  const usernameDirty = usernameInput.trim().length > 0 && usernameInput.trim() !== user?.username;
   const pwReady = currentPw.length > 0 && newPw.length >= 8 && confirmPw.length > 0;
 
   return (
@@ -172,6 +196,9 @@ export default function ProfileScreen({ navigation }: any) {
 
           <View style={styles.userInfo}>
             <Text style={styles.userName}>{user?.name || 'Set Name'}</Text>
+            {user?.username ? (
+              <Text style={styles.userHandle}>@{user.username}</Text>
+            ) : null}
             <Text style={styles.userEmail}>{user?.email}</Text>
           </View>
 
@@ -200,7 +227,7 @@ export default function ProfileScreen({ navigation }: any) {
 
           <TouchableOpacity style={styles.row} onPress={() => setThemeSheetVisible(true)} activeOpacity={0.75}>
             <View style={[styles.iconBadge, { backgroundColor: '#8E44AD' }]}>
-              <Ionicons name="color-palette-outline" size={18} color="#fff" />
+              <Ionicons name="color-palette-outline" size={16} color="#fff" />
             </View>
             <Text style={styles.rowLabel}>Appearance</Text>
             <View style={styles.rowRight}>
@@ -219,7 +246,7 @@ export default function ProfileScreen({ navigation }: any) {
         >
           <View style={styles.creditsLeft}>
             <View style={[styles.iconBadge, { backgroundColor: '#5E5CE6' }]}>
-              <Ionicons name="wallet-outline" size={18} color="#fff" />
+              <Ionicons name="wallet-outline" size={16} color="#fff" />
             </View>
             <View>
               <Text style={styles.creditsLabel}>Splitwise Credits</Text>
@@ -237,9 +264,22 @@ export default function ProfileScreen({ navigation }: any) {
         {/* ── Account ── */}
         <Text style={styles.sectionHeader}>Account</Text>
         <View style={[styles.card, S.shadowSm]}>
+          <TouchableOpacity style={styles.row} onPress={openUsernameSheet} activeOpacity={0.75}>
+            <View style={[styles.iconBadge, { backgroundColor: '#5856D6' }]}>
+              <Ionicons name="at-outline" size={16} color="#fff" />
+            </View>
+            <Text style={styles.rowLabel}>Username</Text>
+            <View style={styles.rowRight}>
+              <Text style={styles.rowValue}>@{user?.username}</Text>
+              <Ionicons name="chevron-forward" size={15} color={C.chevron} />
+            </View>
+          </TouchableOpacity>
+
+          <View style={styles.rowSep} />
+
           <TouchableOpacity style={styles.row} onPress={openPwSheet} activeOpacity={0.75}>
             <View style={[styles.iconBadge, { backgroundColor: '#3478F6' }]}>
-              <Ionicons name="key-outline" size={18} color="#fff" />
+              <Ionicons name="key-outline" size={16} color="#fff" />
             </View>
             <Text style={styles.rowLabel}>Change Password</Text>
             <View style={styles.rowRight}>
@@ -251,7 +291,7 @@ export default function ProfileScreen({ navigation }: any) {
 
           <TouchableOpacity style={styles.row} onPress={logout} activeOpacity={0.75}>
             <View style={[styles.iconBadge, { backgroundColor: C.negative }]}>
-              <Ionicons name="log-out-outline" size={18} color="#fff" />
+              <Ionicons name="log-out-outline" size={16} color="#fff" />
             </View>
             <Text style={[styles.rowLabel, { color: C.negative }]}>Log Out</Text>
             <View style={styles.rowRight}>
@@ -285,6 +325,37 @@ export default function ProfileScreen({ navigation }: any) {
           activeOpacity={0.85}
         >
           {saving
+            ? <ActivityIndicator color="#fff" />
+            : <Text style={styles.sheetSaveBtnText}>Save</Text>
+          }
+        </TouchableOpacity>
+      </BottomModal>
+
+      {/* ── Username edit sheet ── */}
+      <BottomModal
+        visible={usernameSheetVisible}
+        onClose={() => setUsernameSheetVisible(false)}
+      >
+        <Text style={styles.sheetTitle}>Username</Text>
+        <TextInput
+          style={styles.sheetInput}
+          value={usernameInput}
+          onChangeText={v => setUsernameInput(v.toLowerCase().replace(/[^a-z0-9_.]/g, ''))}
+          placeholder="e.g. john_doe"
+          placeholderTextColor={C.placeholder}
+          autoCapitalize="none"
+          autoCorrect={false}
+          autoFocus
+          returnKeyType="done"
+          onSubmitEditing={handleSaveUsername}
+        />
+        <TouchableOpacity
+          style={[styles.sheetSaveBtn, !usernameDirty && styles.sheetSaveBtnDisabled]}
+          onPress={handleSaveUsername}
+          disabled={savingUsername || !usernameDirty}
+          activeOpacity={0.85}
+        >
+          {savingUsername
             ? <ActivityIndicator color="#fff" />
             : <Text style={styles.sheetSaveBtnText}>Save</Text>
           }
@@ -431,7 +502,6 @@ function makeStyles(C: ThemeColors) {
     container: { flex: 1, backgroundColor: C.bg },
     content: { paddingBottom: TAB_PAD },
 
-    // ── Page title (iOS 26 "Settings" style) ──
     pageTitle: {
       fontSize: 34,
       fontWeight: '700',
@@ -441,71 +511,76 @@ function makeStyles(C: ThemeColors) {
       marginBottom: 20,
     },
 
-    // ── User card ──
+    // ── User card (iOS 26 account row style) ──
     userCard: {
       flexDirection: 'row',
       alignItems: 'center',
       marginHorizontal: 16,
-      marginBottom: 36,
+      marginBottom: 10,
       backgroundColor: C.bgElevated,
-      borderRadius: 18,
-      paddingHorizontal: 18,
-      paddingVertical: 18,
-      gap: 16,
+      borderRadius: 20,
+      // @ts-ignore — iOS-only continuous squircle curve
+      borderCurve: 'continuous',
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      gap: 14,
     },
     avatarBtn: { position: 'relative' },
     cameraOverlay: {
       position: 'absolute',
       bottom: -2,
       right: -2,
-      width: 24,
-      height: 24,
-      borderRadius: 12,
+      width: 22,
+      height: 22,
+      borderRadius: 11,
       backgroundColor: C.accent,
       justifyContent: 'center',
       alignItems: 'center',
-      borderWidth: 2.5,
+      borderWidth: 2,
       borderColor: C.bgElevated,
     },
     userInfo: { flex: 1 },
-    userName: { fontSize: 20, fontWeight: '600', color: C.text, letterSpacing: -0.4 },
-    userEmail: { fontSize: 14, color: C.textSecondary, marginTop: 3 },
+    userName: { fontSize: 17, fontWeight: '600', color: C.text, letterSpacing: -0.2 },
+    userHandle: { fontSize: 13, color: C.accent, fontWeight: '500', marginTop: 1 },
+    userEmail: { fontSize: 13, color: C.textSecondary, marginTop: 1 },
 
-    // ── Credits card ──
+    // ── Credits card (lives inside a card group) ──
     creditsCard: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
       marginHorizontal: 16,
-      marginBottom: 36,
+      marginBottom: 10,
       backgroundColor: C.bgElevated,
-      borderRadius: 18,
+      borderRadius: 20,
+      // @ts-ignore
+      borderCurve: 'continuous',
       paddingHorizontal: 16,
       paddingVertical: 14,
     },
     creditsLeft: { flexDirection: 'row', alignItems: 'center', gap: 14, flex: 1 },
-    creditsLabel: { fontSize: 17, color: C.text, fontWeight: '500' },
+    creditsLabel: { fontSize: 17, color: C.text, fontWeight: '400' },
     creditsSub: { fontSize: 12, color: C.textSecondary, marginTop: 1 },
-    creditsBalance: { fontSize: 17, color: '#5E5CE6', fontWeight: '700', marginRight: 4 },
+    creditsBalance: { fontSize: 15, color: '#5E5CE6', fontWeight: '600', marginRight: 2 },
 
-    // ── Section header ──
+    // ── Section header — iOS 26: sentence case, subtle gray ──
     sectionHeader: {
       fontSize: 13,
       fontWeight: '400',
       color: C.textSecondary,
-      textTransform: 'uppercase',
-      letterSpacing: 0.7,
       marginLeft: 20,
-      marginBottom: 8,
-      marginTop: 8,
+      marginBottom: 6,
+      marginTop: 22,
     },
 
-    // ── Settings card ──
+    // ── Settings card (inset grouped) ──
     card: {
       marginHorizontal: 16,
-      marginBottom: 36,
+      marginBottom: 0,
       backgroundColor: C.bgElevated,
-      borderRadius: 18,
+      borderRadius: 20,
+      // @ts-ignore
+      borderCurve: 'continuous',
       overflow: 'hidden',
     },
 
@@ -514,18 +589,20 @@ function makeStyles(C: ThemeColors) {
       flexDirection: 'row',
       alignItems: 'center',
       paddingHorizontal: 16,
-      height: 58,
+      height: 54,
       gap: 14,
     },
     iconBadge: {
-      width: 36,
-      height: 36,
-      borderRadius: 9,
+      width: 30,
+      height: 30,
+      borderRadius: 7,
+      // @ts-ignore
+      borderCurve: 'continuous',
       justifyContent: 'center',
       alignItems: 'center',
     },
     badgeCurrencyText: {
-      fontSize: 15,
+      fontSize: 13,
       fontWeight: '700',
       color: '#fff',
     },
@@ -533,20 +610,22 @@ function makeStyles(C: ThemeColors) {
       flex: 1,
       fontSize: 17,
       color: C.text,
+      fontWeight: '400',
     },
     rowRight: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 4,
+      gap: 2,
     },
     rowValue: {
       fontSize: 17,
       color: C.textSecondary,
+      fontWeight: '400',
     },
     rowSep: {
       height: StyleSheet.hairlineWidth,
       backgroundColor: C.separator,
-      marginLeft: 66,
+      marginLeft: 60,
     },
 
     // ── Bottom sheet shared ──
@@ -584,8 +663,6 @@ function makeStyles(C: ThemeColors) {
       fontSize: 13,
       fontWeight: '500',
       color: C.textSecondary,
-      textTransform: 'uppercase',
-      letterSpacing: 0.5,
       marginBottom: 6,
       marginTop: 4,
     },
@@ -614,9 +691,11 @@ function makeStyles(C: ThemeColors) {
       gap: 14,
     },
     themeSwatch: {
-      width: 38,
-      height: 38,
-      borderRadius: 10,
+      width: 36,
+      height: 36,
+      borderRadius: 9,
+      // @ts-ignore
+      borderCurve: 'continuous',
     },
     themeEmoji: { fontSize: 18 },
     themeLabel: {
@@ -633,9 +712,11 @@ function makeStyles(C: ThemeColors) {
       gap: 14,
     },
     currencySymbolBadge: {
-      width: 40,
-      height: 40,
-      borderRadius: 10,
+      width: 38,
+      height: 38,
+      borderRadius: 9,
+      // @ts-ignore
+      borderCurve: 'continuous',
       justifyContent: 'center',
       alignItems: 'center',
     },

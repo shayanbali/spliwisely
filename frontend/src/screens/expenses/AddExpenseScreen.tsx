@@ -276,6 +276,21 @@ export default function AddExpenseScreen({ route, navigation }: any) {
               keyboardType="decimal-pad"
             />
           </View>
+          {(() => {
+            const threshold = parseFloat(group.approval_threshold ?? '50');
+            const amt = parseFloat(amount || '0');
+            if (threshold > 0 && amt >= threshold) {
+              return (
+                <View style={styles.approvalWarning}>
+                  <Ionicons name="shield-checkmark-outline" size={14} color="#FF9F0A" />
+                  <Text style={styles.approvalWarningText}>
+                    Expenses ≥ {sym}{threshold.toFixed(0)} require group approval before counting.
+                  </Text>
+                </View>
+              );
+            }
+            return null;
+          })()}
 
           <Text style={styles.label}>Photo</Text>
           {imageUri ? (
@@ -477,6 +492,7 @@ export default function AddExpenseScreen({ route, navigation }: any) {
           </TouchableOpacity>
         ))}
       </BottomModal>
+
     </View>
   );
 }
@@ -527,6 +543,12 @@ function makeStyles(C: ThemeColors) {
     },
 
     amountRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    approvalWarning: {
+      flexDirection: 'row', alignItems: 'center', gap: 6,
+      backgroundColor: 'rgba(255,159,10,0.12)',
+      borderRadius: 10, padding: 10, marginTop: 8,
+    },
+    approvalWarningText: { flex: 1, fontSize: 12, color: '#FF9F0A', fontWeight: '500' },
     currencyBtn: {
       flexDirection: 'row',
       alignItems: 'center',

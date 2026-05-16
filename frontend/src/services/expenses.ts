@@ -33,6 +33,9 @@ export const updateExpense = (id: number, data: {
   receipt_data?: object;
 }) => api.patch<Expense>(`/expenses/${id}/`, data).then(r => r.data);
 
+export const voteOnExpense = (id: number, approved: boolean) =>
+  api.post<{ status: string }>(`/expenses/${id}/vote/`, { approved }).then(r => r.data);
+
 export const getBalances = (groupId?: number) =>
   api.get('/expenses/balances/', { params: groupId ? { group: groupId } : {} }).then(r => r.data);
 
@@ -85,6 +88,27 @@ export const deleteRecurringExpense = (id: number) =>
 
 export const generateRecurringExpenses = (groupId: number) =>
   api.post('/expenses/recurring/generate/', { group: groupId }).then(r => r.data);
+
+export interface AnalyticsPeriod { label: string; total: string; }
+export interface AnalyticsCategory { label: string; total: string; percentage: number; }
+export interface MemberSpending {
+  user: { id: number; name: string; email: string; avatar?: string };
+  amount: string;
+  percentage: number;
+}
+export interface AnalyticsData {
+  periods: AnalyticsPeriod[];
+  categories: AnalyticsCategory[];
+  current_total: string;
+  previous_total: string;
+  change_pct: number | null;
+  currency: string;
+  member_spending?: MemberSpending[];
+}
+export const getAnalytics = (period: 'monthly' | 'weekly', groupId?: number) =>
+  api.get<AnalyticsData>('/expenses/analytics/', {
+    params: { period, ...(groupId ? { group: groupId } : {}) },
+  }).then(r => r.data);
 
 export const scanReceipt = (imageUri: string): Promise<ReceiptScanResult> => {
   const form = new FormData();

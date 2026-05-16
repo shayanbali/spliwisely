@@ -178,20 +178,22 @@ export default function ActivityScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Activity</Text>
-        <View style={styles.currencyPill}>
-          <Text style={styles.currencyPillText}>{preferredCurrency}</Text>
-        </View>
-      </View>
       <FlatList
         data={items}
         keyExtractor={(item, i) => `${item.type}-${item.id}-${i}`}
+        showsVerticalScrollIndicator={false}
         contentContainerStyle={{
           paddingHorizontal: 16,
           paddingBottom: TAB_PAD,
-          paddingTop: 8,
         }}
+        ListHeaderComponent={
+          <View style={styles.header}>
+            <Text style={styles.headerTitle}>Activity</Text>
+            <View style={styles.currencyPill}>
+              <Text style={styles.currencyPillText}>{preferredCurrency}</Text>
+            </View>
+          </View>
+        }
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -226,7 +228,7 @@ function makeStyles(C: ThemeColors) {
 
     header: {
       paddingTop: 60,
-      paddingHorizontal: 20,
+      paddingHorizontal: 4,
       paddingBottom: 16,
       flexDirection: 'row',
       justifyContent: 'space-between',

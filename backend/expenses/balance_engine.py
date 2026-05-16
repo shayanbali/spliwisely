@@ -20,6 +20,8 @@ def compute_net_balances(expenses, settlements):
             balances[split.user_id] -= split.amount
 
     for s in settlements:
+        if s.payer_id == s.receiver_id:
+            continue
         balances[s.receiver_id] -= s.amount
         balances[s.payer_id] += s.amount
 

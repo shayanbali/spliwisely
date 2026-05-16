@@ -11,7 +11,7 @@ import BackButton from '../../components/common/BackButton';
 import { useFocusEffect } from '@react-navigation/native';
 import { getGroup, addMember, updateGroupImage, updateGroupSettings, getPotTransactions, getPotBalance, createPotTransaction } from '../../services/groups';
 import { useAuth } from '../../context/AuthContext';
-import { getExpenses, getSimplifiedBalances, deleteExpense, getRecurringExpenses, updateRecurringExpense, deleteRecurringExpense, generateRecurringExpenses, getSettlements } from '../../services/expenses';
+import { getExpenses, getSimplifiedBalances, deleteExpense, voteOnExpense, getRecurringExpenses, updateRecurringExpense, deleteRecurringExpense, generateRecurringExpenses, getSettlements } from '../../services/expenses';
 import { RecurringExpense, PotTransaction } from '../../types';
 import { Group, Expense, Settlement } from '../../types';
 import BottomModal from '../../components/common/BottomModal';
@@ -182,6 +182,15 @@ export default function GroupDetailScreen({ route, navigation }: any) {
       Alert.alert('Error', 'Could not update group picture.');
     } finally {
       setUploadingImage(false);
+    }
+  }
+
+  async function handleVote(expenseId: number, approved: boolean) {
+    try {
+      await voteOnExpense(expenseId, approved);
+      load();
+    } catch (e: any) {
+      Alert.alert('Error', e?.response?.data?.detail ?? 'Could not submit vote.');
     }
   }
 
@@ -557,6 +566,13 @@ export default function GroupDetailScreen({ route, navigation }: any) {
               <Text style={styles.sectionLabel}>Expenses</Text>
               <View style={styles.expensesHeaderActions}>
                 <TouchableOpacity
+                  style={styles.analyticsBtn}
+                  onPress={() => navigation.navigate('Analytics', { group })}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="bar-chart-outline" size={16} color={C.accent} />
+                </TouchableOpacity>
+                <TouchableOpacity
                   style={styles.scanBtn}
                   onPress={() => navigation.navigate('ReceiptScan', { group, onDone: load })}
                   activeOpacity={0.85}
@@ -632,16 +648,31 @@ export default function GroupDetailScreen({ route, navigation }: any) {
           const expCurrency: string = item.currency ?? group.currency ?? 'USD';
           const total = parseFloat(item.amount);
 
+          // Use simplified balances (which account for settlements) to determine outstanding status
+          const iStillOwePayer = simplified.some(
+            (t: any) => t.from.id === myId && t.to.id === item.paid_by.id
+          );
+          const someoneInExpenseStillOwesMe = item.splits?.some(
+            (s: any) => s.user.id !== myId && simplified.some(
+              (t: any) => t.from.id === s.user.id && t.to.id === myId
+            )
+          ) ?? false;
+
           let shareLabel = '';
           let shareColor = C.textSecondary;
           if (iPaid && myShare > 0) {
             const lent = total - myShare;
-            shareLabel = lent > 0.005 ? `you lent ${fmt(lent, expCurrency)}` : 'you paid in full';
-            shareColor = C.positive;
+            if (lent > 0.005 && someoneInExpenseStillOwesMe) {
+              shareLabel = `you lent ${fmt(lent, expCurrency)}`;
+              shareColor = C.positive;
+            } else if (lent <= 0.005) {
+              shareLabel = 'you paid in full';
+              shareColor = C.positive;
+            }
           } else if (iPaid) {
             shareLabel = 'you paid in full';
             shareColor = C.positive;
-          } else if (myShare > 0) {
+          } else if (myShare > 0 && iStillOwePayer) {
             shareLabel = `you owe ${fmt(myShare, expCurrency)}`;
             shareColor = C.negative;
           }
@@ -649,8 +680,17 @@ export default function GroupDetailScreen({ route, navigation }: any) {
           const convStr = converted(total, expCurrency);
           const cat = getExpenseCategory(item.description);
 
+          const isPending  = item.status === 'pending';
+          const isRejected = item.status === 'rejected';
+          const myVote     = item.approvals?.find((a: any) => a.user.id === myId);
+          const canVote    = isPending && item.paid_by?.id !== myId && !myVote;
+
           return (
-            <View style={[styles.expenseRow, S.shadowSm]}>
+            <View style={[
+              styles.expenseRow, S.shadowSm,
+              isPending  && { borderLeftWidth: 3, borderLeftColor: '#FF9F0A' },
+              isRejected && { borderLeftWidth: 3, borderLeftColor: C.negative, opacity: 0.6 },
+            ]}>
               <TouchableOpacity
                 onPress={item.image ? () => setReceiptViewItem(item) : undefined}
                 activeOpacity={item.image ? 0.7 : 1}
@@ -665,24 +705,77 @@ export default function GroupDetailScreen({ route, navigation }: any) {
                   </View>
                 )}
               </TouchableOpacity>
+
               <View style={styles.expenseInfo}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Text style={styles.expenseDesc}>{item.description}</Text>
                   {item.recurring && (
                     <Ionicons name="repeat" size={13} color={C.accent} />
                   )}
+                  {isPending && (
+                    <View style={styles.pendingBadge}>
+                      <Text style={styles.pendingBadgeText}>Pending</Text>
+                    </View>
+                  )}
+                  {isRejected && (
+                    <View style={[styles.pendingBadge, { backgroundColor: 'rgba(255,59,48,0.12)' }]}>
+                      <Text style={[styles.pendingBadgeText, { color: C.negative }]}>Rejected</Text>
+                    </View>
+                  )}
                 </View>
                 <Text style={styles.expenseSub}>
                   Paid by {paidByName} · {fmt(total, expCurrency)}{convStr ? ` (${convStr})` : ''}
                 </Text>
-                {shareLabel ? (
+                {!isPending && !isRejected && shareLabel ? (
                   <Text style={[styles.expenseShare, { color: shareColor }]}>{shareLabel}</Text>
                 ) : null}
+                {isPending && (
+                  <Text style={styles.approvalSub}>
+                    {item.approvals?.length > 0
+                      ? `${item.approvals.filter((a: any) => a.approved).length} of ${group.members.length - 1} approved`
+                      : 'Waiting for approval from group'}
+                  </Text>
+                )}
                 {item.notes ? (
                   <Text style={styles.expenseNotes} numberOfLines={2}>{item.notes}</Text>
                 ) : null}
                 <Text style={styles.expenseDate}>{formatDate(item.created_at)}</Text>
+
+                {/* Approve / Reject buttons */}
+                {canVote && (
+                  <View style={styles.voteRow}>
+                    <TouchableOpacity
+                      style={styles.approveBtn}
+                      onPress={() => handleVote(item.id, true)}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="checkmark" size={14} color="#fff" />
+                      <Text style={styles.voteBtnText}>Approve</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.rejectBtn}
+                      onPress={() => Alert.alert(
+                        'Reject Expense',
+                        `Reject "${item.description}"? This will cancel the expense for everyone.`,
+                        [
+                          { text: 'Cancel', style: 'cancel' },
+                          { text: 'Reject', style: 'destructive', onPress: () => handleVote(item.id, false) },
+                        ]
+                      )}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="close" size={14} color="#fff" />
+                      <Text style={styles.voteBtnText}>Reject</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+                {isPending && myVote && (
+                  <Text style={[styles.approvalSub, { color: myVote.approved ? C.positive : C.negative }]}>
+                    {myVote.approved ? '✓ You approved this' : '✗ You rejected this'}
+                  </Text>
+                )}
               </View>
+
               <TouchableOpacity
                 onPress={() => handleExpenseActions(item)}
                 hitSlop={12}
@@ -1014,6 +1107,14 @@ function makeStyles(C: ThemeColors) {
       alignItems: 'center',
       gap: 8,
     },
+    analyticsBtn: {
+      width: 34,
+      height: 34,
+      borderRadius: 10,
+      backgroundColor: C.accentSoft,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
     scanBtn: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -1110,6 +1211,27 @@ function makeStyles(C: ThemeColors) {
     expenseShare: { fontSize: 12, fontWeight: '700', marginTop: 3 },
     expenseNotes: { fontSize: 12, color: C.textMuted, marginTop: 3, fontStyle: 'italic' },
     expenseDate: { fontSize: 11, color: C.textMuted, marginTop: 4 },
+
+    pendingBadge: {
+      backgroundColor: 'rgba(255,159,10,0.15)',
+      borderRadius: 6,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+    },
+    pendingBadgeText: { fontSize: 10, fontWeight: '700', color: '#FF9F0A' },
+    approvalSub: { fontSize: 11, color: '#FF9F0A', marginTop: 3 },
+    voteRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
+    approveBtn: {
+      flexDirection: 'row', alignItems: 'center', gap: 4,
+      backgroundColor: C.positive, borderRadius: 8,
+      paddingHorizontal: 10, paddingVertical: 5,
+    },
+    rejectBtn: {
+      flexDirection: 'row', alignItems: 'center', gap: 4,
+      backgroundColor: C.negative, borderRadius: 8,
+      paddingHorizontal: 10, paddingVertical: 5,
+    },
+    voteBtnText: { fontSize: 12, fontWeight: '700', color: '#fff' },
     settlementIcon: { backgroundColor: 'rgba(48,209,88,0.15)' },
     settlementBadgePill: {
       backgroundColor: 'rgba(48,209,88,0.12)',

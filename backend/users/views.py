@@ -92,11 +92,14 @@ class CreditTransferView(APIView):
             return Response({'detail': 'Amount must be positive.'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            to_user = User.objects.select_for_update().get(id=to_user_id)
+            to_user = User.objects.get(id=to_user_id)
         except User.DoesNotExist:
             return Response({'detail': 'Recipient not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-        from_user = User.objects.select_for_update().get(id=request.user.id)
+        from_user = User.objects.get(id=request.user.id)
+
+        if from_user.id == to_user.id:
+            return Response({'detail': 'Cannot transfer credits to yourself.'}, status=status.HTTP_400_BAD_REQUEST)
 
         if from_user.credits_balance < amount:
             return Response(
@@ -135,17 +138,23 @@ class CreditTransferView(APIView):
 
 
 class CreditTopUpDemoView(APIView):
-    """Demo endpoint — adds 100 credits without real payment."""
+    """Demo endpoint — adds credits without real payment. Amount capped at 500."""
     permission_classes = [permissions.IsAuthenticated]
 
+    @db_transaction.atomic
     def post(self, request):
-        amount = Decimal('100.00')
-        user = User.objects.select_for_update().get(id=request.user.id)
+        raw = request.data.get('amount', '100')
+        try:
+            amount = Decimal(str(raw)).quantize(Decimal('0.01'))
+        except (InvalidOperation, TypeError):
+            amount = Decimal('100.00')
+        amount = min(max(amount, Decimal('1')), Decimal('500'))
+        user = User.objects.get(id=request.user.id)
         user.credits_balance += amount
         user.save(update_fields=['credits_balance'])
         CreditTransaction.objects.create(
             user=user, counterpart=None,
             transaction_type='topup', amount=amount, currency='USD',
-            note='Demo top-up',
+            note=f'Demo top-up (+{amount} SC)',
         )
         return Response({'balance': str(user.credits_balance), 'detail': 'Top-up successful.'})

@@ -8,7 +8,7 @@ User = get_user_model()
 class UserBriefSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ('id', 'name', 'email', 'avatar')
+        fields = ('id', 'name', 'username', 'email', 'avatar')
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
@@ -35,7 +35,7 @@ class GroupSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Group
-        fields = ('id', 'name', 'description', 'currency', 'image', 'simplify_debts', 'group_type', 'created_by', 'members', 'member_count', 'created_at')
+        fields = ('id', 'name', 'description', 'currency', 'image', 'simplify_debts', 'group_type', 'approval_threshold', 'created_by', 'members', 'member_count', 'created_at')
 
     def get_member_count(self, obj):
         return obj.members.count()

@@ -105,6 +105,7 @@ function greetingFor(date = new Date()) {
 }
 
 export default function DashboardScreen({ navigation }: any) {
+
   const { user } = useAuth();
   const { preferredCurrency } = useCurrency();
   const { C } = useTheme();
@@ -115,7 +116,8 @@ export default function DashboardScreen({ navigation }: any) {
   const [error, setError] = useState(false);
   const [focusTick, setFocusTick] = useState(0);
 
-  const totalBalance = balances.reduce((sum, b) => sum + parseFloat(b.amount), 0);
+  const displayBalances = balances.filter(b => b.user.id !== user?.id);
+  const totalBalance = displayBalances.reduce((sum, b) => sum + parseFloat(b.amount), 0);
 
   async function load() {
     setError(false);
@@ -171,7 +173,7 @@ export default function DashboardScreen({ navigation }: any) {
   return (
     <View style={styles.container}>
       <FlatList
-        data={balances}
+        data={displayBalances}
         keyExtractor={(_, i) => i.toString()}
         contentContainerStyle={styles.listContent}
         refreshControl={
@@ -185,8 +187,19 @@ export default function DashboardScreen({ navigation }: any) {
         ListHeaderComponent={
           <View>
             <View style={styles.header}>
-              <Text style={styles.greeting}>{greet}</Text>
-              <Text style={styles.greetSub}>Here's your balance overview</Text>
+              <View style={styles.headerTop}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.greeting}>{greet}</Text>
+                  <Text style={styles.greetSub}>Here's your balance overview</Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.analyticsBtn}
+                  onPress={() => navigation.navigate('Analytics')}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="bar-chart-outline" size={20} color={C.accent} />
+                </TouchableOpacity>
+              </View>
             </View>
 
             <View style={styles.heroWrap}>
@@ -266,6 +279,20 @@ function makeStyles(C: ThemeColors) {
       paddingTop: 60,
       paddingHorizontal: 20,
       paddingBottom: 16,
+    },
+    headerTop: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 12,
+    },
+    analyticsBtn: {
+      width: 40,
+      height: 40,
+      borderRadius: 12,
+      backgroundColor: C.accentSoft,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginTop: 4,
     },
     greeting: {
       fontSize: 34,

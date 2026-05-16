@@ -21,21 +21,32 @@ export default function RegisterScreen({ navigation }: Props) {
   const { C } = useTheme();
   const styles = useMemo(() => makeStyles(C), [C]);
   const [name, setName] = useState('');
+  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
   async function handleRegister() {
-    if (!name || !email || !password) {
+    if (!name || !username || !email || !password) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
     }
     setLoading(true);
     try {
-      await api.post('/auth/register/', { name, email: email.trim().toLowerCase(), password });
+      await api.post('/auth/register/', {
+        name,
+        username: username.trim().toLowerCase(),
+        email: email.trim().toLowerCase(),
+        password,
+      });
       await login(email.trim().toLowerCase(), password);
     } catch (err: any) {
-      const msg = err.response?.data?.email?.[0] ?? 'Registration failed. Please try again.';
+      const data = err.response?.data;
+      const msg =
+        data?.username?.[0] ??
+        data?.email?.[0] ??
+        data?.detail ??
+        'Registration failed. Please try again.';
       Alert.alert('Error', msg);
     } finally {
       setLoading(false);
@@ -74,6 +85,15 @@ export default function RegisterScreen({ navigation }: Props) {
               placeholderTextColor={C.placeholder}
               value={name}
               onChangeText={setName}
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Username (e.g. john_doe)"
+              placeholderTextColor={C.placeholder}
+              value={username}
+              onChangeText={v => setUsername(v.toLowerCase().replace(/[^a-z0-9_.]/g, ''))}
+              autoCapitalize="none"
+              autoCorrect={false}
             />
             <TextInput
               style={styles.input}
